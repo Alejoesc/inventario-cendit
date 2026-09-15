@@ -2,8 +2,7 @@ const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  family: 4 // Fuerza el uso de IPv4 para evitar el error ENETUNREACH en Render
+  ssl: { rejectUnauthorized: false }
 });
 
 let isInitialized = false;
@@ -22,11 +21,15 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         cedula TEXT UNIQUE,
+        email TEXT,
         password TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'Operador',
         direction_id INTEGER REFERENCES directions(id) ON DELETE SET NULL
       );
     `);
+
+    // Asegurar compatibilidad si la tabla ya existía sin email
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS items (
@@ -88,13 +91,13 @@ async function initDB() {
     }
 
     await pool.query(`
-      INSERT INTO users (username, cedula, password, role, direction_id) 
-      VALUES ('admin', 'V-00000000', 'admin123', 'Administrador', 1) 
+      INSERT INTO users (username, cedula, email, password, role, direction_id) 
+      VALUES ('admin', 'V-00000000', 'admin@cendit.gob.ve', 'admin123', 'Administrador', 1) 
       ON CONFLICT (username) DO NOTHING;
     `);
 
     isInitialized = true;
-    console.log('Base de datos PostgreSQL inicializada y sincronizada correctamente con IPv4.');
+    console.log('Base de datos PostgreSQL inicializada y sincronizada correctamente.');
   } catch (err) {
     console.error('Error inicializando la base de datos:', err.message);
   }

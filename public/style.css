@@ -63,7 +63,7 @@ aside {
     background-color: var(--accent); color: white; padding: 22px;
     font-size: 1.1rem; font-weight: 700; text-align: center; letter-spacing: 0.5px;
 }
-.sidebar-menu { list-style: none; padding: 0; margin: 0; }
+.sidebar-menu { list-style: none; padding: 0; margin: 0; overflow-y: auto; }
 .sidebar-menu li { border-left: 4px solid transparent; transition: all 0.2s; }
 .sidebar-menu li:hover, .sidebar-menu li.active {
     background-color: var(--sidebar-hover); border-left-color: var(--accent); color: white;
@@ -73,11 +73,11 @@ aside {
 }
 .sidebar-menu li.active a { color: white; font-weight: 600; }
 
-.wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; width: 100%; }
 header {
     background: var(--header-bg); padding: 0 20px; border-bottom: 1px solid var(--border-color);
     display: flex; justify-content: space-between; align-items: center; height: 65px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05); gap: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); gap: 10px; flex-shrink: 0;
 }
 .header-title { font-size: 1.05rem; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
@@ -110,7 +110,7 @@ main { padding: 20px; overflow-y: auto; flex: 1; }
 .view-section { display: none; }
 .view-section.active { display: block; }
 
-.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px; }
 .metric-card {
     background: var(--card-bg); border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     border: 1px solid var(--border-color); display: flex; flex-direction: column;
@@ -144,7 +144,23 @@ button:hover { background: var(--accent-hover); }
 .btn-info { background: #3b82f6; }
 .btn-info:hover { background: #2563eb; }
 
-.table-responsive { width: 100%; overflow-x: auto; }
+/* ESTILOS PROFESIONALES PARA EL SELECTOR FLOTANTE DE RECEPTOR */
+.custom-select-wrapper { position: relative; width: 100%; }
+.custom-dropdown-list {
+    position: absolute; top: 100%; left: 0; right: 0; max-height: 240px; overflow-y: auto;
+    background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25); z-index: 1000; margin-top: 4px;
+}
+.custom-dropdown-item {
+    padding: 10px 14px; border-bottom: 1px solid var(--border-color); cursor: pointer; font-size: 0.9rem;
+    transition: background 0.15s;
+}
+.custom-dropdown-item:last-child { border-bottom: none; }
+.custom-dropdown-item:hover { background: rgba(5, 150, 105, 0.1); color: var(--accent); }
+.custom-dropdown-item .item-title { font-weight: 600; color: var(--text-main); }
+.custom-dropdown-item .item-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 2px; }
+
+.table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; min-width: 650px; }
 th, td { padding: 12px 16px; border-bottom: 1px solid var(--border-color); text-align: left; }
 th { background: var(--table-th); font-weight: 600; color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
@@ -155,14 +171,20 @@ tr:hover td { background: rgba(0,0,0,0.02); }
 .badge-green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 .badge-yellow { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
 
-@media(max-width: 768px) {
-    body { flex-direction: column; height: auto; overflow: auto; }
-    aside { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border-color); }
-    .sidebar-menu { display: flex; flex-wrap: wrap; justify-content: center; }
-    .sidebar-menu li { flex: 1 1 auto; text-align: center; }
-    .sidebar-menu a { padding: 10px 12px; font-size: 0.85rem; }
+/* DISEÑO RESPONSIVO AVANZADO PARA TABLETS Y TELÉFONOS */
+@media(max-width: 900px) {
+    body { flex-direction: column; height: 100vh; overflow: auto; }
+    aside { width: 100%; height: auto; flex-shrink: 0; border-right: none; border-bottom: 1px solid var(--border-color); }
+    .brand-header { padding: 12px; font-size: 1rem; }
+    .sidebar-menu { display: flex; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; padding: 5px; }
+    .sidebar-menu li { border-left: none; border-bottom: 3px solid transparent; flex: 0 0 auto; }
+    .sidebar-menu li.active { border-bottom-color: var(--accent); }
+    .sidebar-menu a { padding: 10px 14px; font-size: 0.85rem; }
     .wrapper { height: auto; overflow: visible; }
-    main { padding: 15px; }
+    main { padding: 12px; }
+    .form-row { grid-template-columns: 1fr; gap: 10px; }
+    header { height: 55px; padding: 0 12px; }
+    .header-title { font-size: 0.95rem; }
 }
 
 @media print {

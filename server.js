@@ -26,7 +26,6 @@ function adminMiddleware(req, res, next) {
   next();
 }
 
-// Inicio de sesión por Usuario o Cédula
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Ingrese usuario o cédula y contraseña' });
@@ -58,15 +57,15 @@ app.get('/api/users', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/users', authMiddleware, adminMiddleware, async (req, res) => {
-  const { username, cedula, password, role, direction_id } = req.body;
+  const { username, cedula, email, password, role, direction_id } = req.body;
   try {
     await db.query(
-      `INSERT INTO users (username, cedula, password, role, direction_id) VALUES ($1, $2, $3, $4, $5)`,
-      [username, cedula, password, role || 'Operador', direction_id || null]
+      `INSERT INTO users (username, cedula, email, password, role, direction_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [username, cedula, email || null, password, role || 'Operador', direction_id || null]
     );
     res.json({ message: 'Usuario creado exitosamente' });
   } catch (err) {
-    res.status(500).json({ error: 'El usuario o la cédula ya existen' });
+    res.status(500).json({ error: 'El usuario, la cédula o el correo ya existen' });
   }
 });
 

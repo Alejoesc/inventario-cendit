@@ -20,7 +20,7 @@
         </div>
     </div>
 
-    <!-- MODAL DE LOGIN (Soporta Usuario o Cédula) -->
+    <!-- MODAL DE LOGIN -->
     <div id="loginOverlay">
         <div class="login-card">
             <h2>CENDIT INVENTORY</h2>
@@ -152,9 +152,11 @@
                         
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Receptor Autorizado:</label>
-                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Escriba nombre o cédula...">
+                            <div class="custom-select-wrapper">
+                                <input type="text" id="receiverRespInput" placeholder="Escriba nombre o cédula..." autocomplete="off" oninput="filterReceiverDropdown(this.value)" onfocus="openReceiverDropdown()">
+                                <div id="receiverDropdownList" class="custom-dropdown-list" style="display:none;"></div>
+                            </div>
                         </div>
-                        <datalist id="usersList"></datalist>
                     </div>
                     <div class="form-row">
                         <input type="number" id="loanQty" placeholder="Cantidad / Metros" step="any">
@@ -252,10 +254,13 @@
             <!-- VISTA 6: USUARIOS -->
             <div id="view-users" class="view-section">
                 <div class="box">
-                    <h3>Crear Nuevo Usuario del Sistema</h3>
+                    <h3>Crear Nuevo Usuario del Sistema (Con Correo Electrónico)</h3>
                     <div class="form-row">
                         <input type="text" id="newUsername" placeholder="Nombre y Apellido">
                         <input type="text" id="newCedula" placeholder="Cédula (Ej: V-26123456)">
+                        <input type="email" id="newEmail" placeholder="Correo electrónico (ej: usuario@cendit.gob.ve)">
+                    </div>
+                    <div class="form-row">
                         <input type="password" id="newPassword" placeholder="Contraseña">
                         <select id="newUserDirSelect">
                             <option value="">Seleccione Unidad / Dirección...</option>
@@ -272,7 +277,7 @@
                     <div class="table-responsive">
                         <table>
                             <thead>
-                                <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Unidad</th><th>Rol</th><th>Acciones</th></tr>
+                                <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Correo</th><th>Unidad</th><th>Rol</th><th>Acciones</th></tr>
                             </thead>
                             <tbody id="usersTable"></tbody>
                         </table>
@@ -288,6 +293,7 @@
         let currentTheme = localStorage.getItem('cendit_theme') || 'light';
         let allLoansCache = [];
         let allPurchasesCache = [];
+        let allUsersCache = [];
 
         document.documentElement.setAttribute('data-theme', currentTheme);
         updateThemeButtonText();
@@ -387,10 +393,10 @@
                 const directions = await dirRes.json();
                 const items = await itemRes.json();
                 allLoansCache = await loanRes.json();
-                const users = await userRes.json();
+                allUsersCache = await userRes.json();
                 allPurchasesCache = await purRes.json();
 
-                document.getElementById('statUsers').innerText = users.length;
+                document.getElementById('statUsers').innerText = allUsersCache.length;
                 document.getElementById('statDirs').innerText = directions.length;
                 document.getElementById('statItems').innerText = items.length;
                 document.getElementById('statLoans').innerText = allLoansCache.filter(l => l.status === 'ACTIVO').length;
@@ -409,12 +415,7 @@
                     newUserDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
                 });
 
-                const usersList = document.getElementById('usersList');
-                usersList.innerHTML = '';
-                users.forEach(u => {
-                    const unitName = u.direction_name || 'Sin unidad';
-                    usersList.innerHTML += `<option value="${u.username}">Cédula: ${u.cedula || 'N/A'} | Unidad: ${unitName} (${u.role})</option>`;
-                });
+                renderReceiverDropdown(allUsersCache);
 
                 const lowStockItems = items.filter(i => i.alerta_reposicion);
                 const pendingPurchases = allPurchasesCache.filter(p => p.status === 'PENDIENTE');
@@ -537,12 +538,13 @@
 
                 const usersTable = document.getElementById('usersTable');
                 usersTable.innerHTML = '';
-                users.forEach(u => {
+                allUsersCache.forEach(u => {
                     usersTable.innerHTML += `
                         <tr>
                             <td>${u.id}</td>
                             <td>${u.username}</td>
                             <td>${u.cedula || 'N/A'}</td>
+                            <td>${u.email || 'N/A'}</td>
                             <td>${u.direction_name || 'N/A'}</td>
                             <td>${u.role}</td>
                             <td>${u.id !== 1 && currentRole === 'Administrador' ? `<button class="btn-danger" onclick="deleteUser(${u.id})">Eliminar</button>` : '<span style="color:var(--text-secondary); font-size:0.85rem;">Protegido</span>'}</td>
@@ -554,6 +556,50 @@
                 console.error("Error cargando datos:", e);
             }
         }
+
+        // LÓGICA DEL SELECTOR ESTILIZADO DE RECEPTOR
+        function openReceiverDropdown() {
+            document.getElementById('receiverDropdownList').style.display = 'block';
+        }
+
+        function filterReceiverDropdown(query) {
+            const filtered = allUsersCache.filter(u => 
+                u.username.toLowerCase().includes(query.toLowerCase()) || 
+                (u.cedula && u.cedula.toLowerCase().includes(query.toLowerCase()) ||
+                (u.email && u.email.toLowerCase().includes(query.toLowerCase())))
+            );
+            renderReceiverDropdown(filtered);
+            document.getElementById('receiverDropdownList').style.display = 'block';
+        }
+
+        function renderReceiverDropdown(users) {
+            const listEl = document.getElementById('receiverDropdownList');
+            listEl.innerHTML = '';
+            if (users.length === 0) {
+                listEl.innerHTML = '<div class="custom-dropdown-item"><div class="item-title">No se encontraron usuarios</div></div>';
+                return;
+            }
+            users.forEach(u => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'custom-dropdown-item';
+                itemDiv.innerHTML = `
+                    <div class="item-title">${u.username}</div>
+                    <div class="item-sub">Cédula: ${u.cedula || 'N/A'} | Correo: ${u.email || 'N/A'} | Unidad: ${u.direction_name || 'Sin unidad'} (${u.role})</div>
+                `;
+                itemDiv.onclick = () => {
+                    document.getElementById('receiverRespInput').value = u.username;
+                    listEl.style.display = 'none';
+                };
+                listEl.appendChild(itemDiv);
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.custom-select-wrapper')) {
+                const list = document.getElementById('receiverDropdownList');
+                if(list) list.style.display = 'none';
+            }
+        });
 
         async function addItem() {
             const body = {
@@ -673,11 +719,14 @@
             const body = {
                 username: document.getElementById('newUsername').value,
                 cedula: document.getElementById('newCedula').value,
+                email: document.getElementById('newEmail').value,
                 password: document.getElementById('newPassword').value,
                 direction_id: document.getElementById('newUserDirSelect').value,
                 role: document.getElementById('newRole').value
             };
-            await fetch('/api/users', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const res = await fetch('/api/users', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
             loadAllData();
         }
         async function deleteUser(id) {
