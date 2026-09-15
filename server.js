@@ -26,16 +26,17 @@ function adminMiddleware(req, res, next) {
   next();
 }
 
+// Login compatible por Usuario o Cédula
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Ingrese usuario y contraseña' });
+  if (!username || !password) return res.status(400).json({ error: 'Ingrese usuario o cédula y contraseña' });
 
   try {
     const result = await pool.query(
-      'SELECT * FROM users WHERE username = $1 AND password = $2',
+      'SELECT * FROM users WHERE (username = $1 OR cedula = $1) AND password = $2',
       [username.trim(), password.trim()]
     );
-    if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario, cédula o contraseña incorrectos' });
     const user = result.rows[0];
     res.json({ message: 'Login exitoso', user: { username: user.username, role: user.role } });
   } catch (err) {
@@ -106,7 +107,6 @@ app.delete('/api/directions/:id', authMiddleware, adminMiddleware, async (req, r
   }
 });
 
-// AISLAMIENTO: Administrador ve todo, operadores solo su unidad
 app.get('/api/items', authMiddleware, async (req, res) => {
   try {
     let query = `
@@ -206,7 +206,7 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
       `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
       [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable]
     );
-    res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación por el supervisor.' });
+    res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -220,7 +220,7 @@ app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, async (req, 
 
     const itemRes = await pool.query('SELECT * FROM items WHERE id = $1', [loan.item_id]);
     if (itemRes.rows.length === 0 || itemRes.rows[0].quantity < loan.quantity) {
-      return res.status(400).json({ error: 'Stock insuficiente para aprobar esta solicitud' });
+      return res.status(400).json({ error: 'Stock insuficiente' });
     }
 
     await pool.query('BEGIN');
@@ -228,7 +228,7 @@ app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, async (req, 
     await pool.query("UPDATE loans SET status = 'ACTIVO' WHERE id = $1", [req.params.id]);
     await pool.query('COMMIT');
 
-    res.json({ message: 'Préstamo aprobado y stock descontado exitosamente' });
+    res.json({ message: 'Préstamo aprobado y stock descontado' });
   } catch (err) {
     await pool.query('ROLLBACK');
     res.status(500).json({ error: err.message });
@@ -238,8 +238,8 @@ app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, async (req, 
 app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query("UPDATE loans SET status = 'RECHAZADO' WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
-    if (result.rowCount === 0) return res.status(400).json({ error: 'No se pudo rechazar la solicitud' });
-    res.json({ message: 'Solicitud de préstamo rechazada.' });
+    if (result.rowCount === 0) return res.status(400).json({ error: 'No se pudo rechazar' });
+    res.json({ message: 'Solicitud rechazada.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -265,7 +265,6 @@ app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
   }
 });
 
-// NUEVAS RUTAS: Solicitudes de Cotización de Compra con devolución por Supervisor
 app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
   try {
     let query = `
@@ -322,4 +321,4 @@ app.post('/api/purchase-requests/:id/approve', authMiddleware, adminMiddleware, 
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor CENDIT activo en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor activo en puerto ${PORT}`));

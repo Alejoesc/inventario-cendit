@@ -90,7 +90,7 @@ async function initDB() {
       ON CONFLICT (username) DO NOTHING;
     `);
 
-    console.log('Base de datos PostgreSQL inicializada correctamente con nuevas funciones.');
+    console.log('Base de datos PostgreSQL inicializada correctamente.');
   } catch (err) {
     console.error('Error inicializando la base de datos:', err.message);
   }

@@ -20,13 +20,13 @@
         </div>
     </div>
 
-    <!-- MODAL DE LOGIN -->
+    <!-- MODAL DE LOGIN (Soporta Usuario o Cédula) -->
     <div id="loginOverlay">
         <div class="login-card">
             <h2>CENDIT INVENTORY</h2>
             <p>Control Inteligente de Fotónica y Redes</p>
-            <input type="text" id="loginUser" placeholder="Usuario (ej: admin)">
-            <input type="password" id="loginPass" placeholder="Contraseña (ej: admin123)">
+            <input type="text" id="loginUser" placeholder="Usuario o Cédula (ej: admin o V-00000000)">
+            <input type="password" id="loginPass" placeholder="Contraseña">
             <button onclick="handleLogin()">Iniciar Sesión</button>
             <div id="loginError"></div>
         </div>
@@ -51,7 +51,6 @@
         <header>
             <div class="header-title" id="headerTitle">Panel de Control General</div>
             <div class="header-right">
-                <!-- Campana de Notificaciones -->
                 <div class="notification-container" onclick="toggleNotifications()">
                     <div class="bell-icon">🔔 <span class="notification-badge" id="notifBadge">0</span></div>
                     <div class="notification-dropdown" id="notifDropdown">
@@ -195,7 +194,7 @@
                 </div>
             </div>
 
-            <!-- VISTA 4: COTIZACIONES Y COMPRAS (NUEVO) -->
+            <!-- VISTA 4: COTIZACIONES Y COMPRAS -->
             <div id="view-purchases" class="view-section">
                 <div class="box">
                     <h3>Solicitud de Cotización de Compra</h3>
@@ -417,7 +416,6 @@
                     usersList.innerHTML += `<option value="${u.username}">Cédula: ${u.cedula || 'N/A'} | Unidad: ${unitName} (${u.role})</option>`;
                 });
 
-                // Alertas para Jefe de Unidad (Stock bajo y Solicitudes de compra pendientes)
                 const lowStockItems = items.filter(i => i.alerta_reposicion);
                 const pendingPurchases = allPurchasesCache.filter(p => p.status === 'PENDIENTE');
                 const badge = document.getElementById('notifBadge');
@@ -507,7 +505,6 @@
                     `;
                 });
 
-                // Renderizar Cotizaciones y Compras
                 const purchaseTable = document.getElementById('purchaseTable');
                 purchaseTable.innerHTML = '';
                 allPurchasesCache.forEach(p => {
