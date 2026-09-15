@@ -1,74 +1,101 @@
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./cendit_fotonica.db', (err) => {
-  if (err) console.error('Error al abrir la base de datos', err.message);
-  else console.log('Conectado a la base de datos SQLite - Inventario CENDIT.');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    cedula TEXT UNIQUE,
-    password TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'Operador',
-    direction_id INTEGER,
-    FOREIGN KEY(direction_id) REFERENCES directions(id) ON DELETE SET NULL
-  )`, () => {
-    db.run(`ALTER TABLE users ADD COLUMN direction_id INTEGER`, (err) => {});
-    // Usuario admin por defecto adscrito a la Unidad de Fotónica (ID 4) o Ejecutiva (ID 1)
-    db.run(`INSERT OR IGNORE INTO users (id, username, cedula, password, role, direction_id) VALUES (1, 'admin', 'V-00000000', 'admin123', 'Administrador', 1)`);
-  });
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS directions (
+        id SERIAL PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL
+      );
+    `);
 
-  db.run(`CREATE TABLE IF NOT EXISTS directions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
-  )`, () => {
-    db.get(`SELECT COUNT(*) as count FROM directions`, (err, row) => {
-      if (row && row.count === 0) {
-        const defaultDirs = [
-          'Dirección Ejecutiva',
-          'Dirección de Tecnologías',
-          'Unidad de Telemática',
-          'Unidad de Fotónica',
-          'Almacén DDI',
-          'Almacén de Electrónica'
-        ];
-        const stmt = db.prepare(`INSERT INTO directions (name) VALUES (?)`);
-        defaultDirs.forEach(dir => stmt.run(dir));
-        stmt.finalize();
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        cedula TEXT UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'Operador',
+        direction_id INTEGER REFERENCES directions(id) ON DELETE SET NULL
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS items (
+        id SERIAL PRIMARY KEY,
+        direction_id INTEGER REFERENCES directions(id) ON DELETE SET NULL,
+        description TEXT NOT NULL,
+        national_asset_number TEXT,
+        unit_type TEXT NOT NULL DEFAULT 'unidades', 
+        quantity REAL NOT NULL,
+        price NUMERIC(12, 2) DEFAULT 0.00,
+        project_name TEXT,
+        assigned_username TEXT
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS loans (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER REFERENCES items(id),
+        source_direction_id INTEGER REFERENCES directions(id),
+        target_direction_id INTEGER REFERENCES directions(id),
+        sender_responsible TEXT NOT NULL,
+        receiver_responsible TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        return_date TEXT,
+        is_returnable TEXT NOT NULL DEFAULT 'SI',
+        status TEXT DEFAULT 'PENDIENTE',
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS purchase_requests (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        direction_id INTEGER REFERENCES directions(id),
+        item_description TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        estimated_price NUMERIC(12, 2) DEFAULT 0.00,
+        status TEXT DEFAULT 'PENDIENTE',
+        supervisor_notes TEXT,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    const dirCount = await pool.query('SELECT COUNT(*) FROM directions');
+    if (parseInt(dirCount.rows[0].count) === 0) {
+      const defaultDirs = [
+        'Dirección Ejecutiva',
+        'Dirección de Tecnologías',
+        'Unidad de Telemática',
+        'Unidad de Fotónica',
+        'Almacén DDI',
+        'Almacén de Electrónica'
+      ];
+      for (const dir of defaultDirs) {
+        await pool.query('INSERT INTO directions (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [dir]);
       }
-    });
-  });
+    }
 
-  db.run(`CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    direction_id INTEGER,
-    description TEXT NOT NULL,
-    national_asset_number TEXT,
-    unit_type TEXT NOT NULL DEFAULT 'unidades', 
-    quantity REAL NOT NULL,
-    FOREIGN KEY(direction_id) REFERENCES directions(id) ON DELETE SET NULL
-  )`);
+    await pool.query(`
+      INSERT INTO users (username, cedula, password, role, direction_id) 
+      VALUES ('admin', 'V-00000000', 'admin123', 'Administrador', 1) 
+      ON CONFLICT (username) DO NOTHING;
+    `);
 
-  db.run(`CREATE TABLE IF NOT EXISTS loans (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_id INTEGER,
-    source_direction_id INTEGER,
-    target_direction_id INTEGER,
-    sender_responsible TEXT NOT NULL,
-    receiver_responsible TEXT NOT NULL,
-    quantity REAL NOT NULL,
-    return_date TEXT,
-    is_returnable TEXT NOT NULL DEFAULT 'SI',
-    status TEXT DEFAULT 'PENDIENTE',
-    date TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(item_id) REFERENCES items(id),
-    FOREIGN KEY(source_direction_id) REFERENCES directions(id),
-    FOREIGN KEY(target_direction_id) REFERENCES directions(id)
-  )`, () => {
-    db.run(`ALTER TABLE loans ADD COLUMN return_date TEXT`, (err) => {});
-    db.run(`ALTER TABLE loans ADD COLUMN is_returnable TEXT DEFAULT 'SI'`, (err) => {});
-  });
-});
+    console.log('Base de datos PostgreSQL inicializada correctamente con nuevas funciones.');
+  } catch (err) {
+    console.error('Error inicializando la base de datos:', err.message);
+  }
+}
 
-module.exports = db;
+initDB();
+
+module.exports = pool;

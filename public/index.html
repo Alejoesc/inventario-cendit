@@ -39,6 +39,7 @@
             <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel</a></li>
             <li onclick="switchView('inventory', this)"><a href="#">📦 Stock por Unidad</a></li>
             <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos</a></li>
+            <li onclick="switchView('purchases', this)"><a href="#">🛒 Cotizaciones y Compras</a></li>
             <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades</a></li>
             <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Accesos</a></li>
             <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Salir</a></li>
@@ -54,7 +55,7 @@
                 <div class="notification-container" onclick="toggleNotifications()">
                     <div class="bell-icon">🔔 <span class="notification-badge" id="notifBadge">0</span></div>
                     <div class="notification-dropdown" id="notifDropdown">
-                        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Alertas Inteligentes de Stock</div>
+                        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Alertas para Jefe de Unidad</div>
                         <div id="notifList" style="font-size: 0.85rem;">No hay alertas recientes.</div>
                     </div>
                 </div>
@@ -87,17 +88,17 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Cada unidad opera de forma independiente y aislada sobre su propio inventario de fotónica, UTP o equipos. Aprobación por supervisor y planillas de firmas integradas.</p>
+                    <p>Gestión automatizada con asignación de materiales a proyectos, control de precios, alertas a jefes de unidad y devoluciones de cotizaciones de compra.</p>
                 </div>
             </div>
 
             <!-- VISTA 2: INVENTARIO -->
             <div id="view-inventory" class="view-section">
                 <div class="box" id="addItemBox" style="display:none;">
-                    <h3>Registrar Nuevo Artículo o Bobina en tu Unidad</h3>
+                    <h3>Registrar Material (Asignado a Usuario y Proyecto con Precio)</h3>
                     <div class="form-row">
                         <select id="itemDirSelect"></select>
-                        <input type="text" id="desc" placeholder="Descripción (Ej: Bobina UTP / Fotónica)">
+                        <input type="text" id="desc" placeholder="Descripción del Material">
                         <input type="text" id="assetNum" placeholder="N° Bien Nacional (Opcional)">
                     </div>
                     <div class="form-row">
@@ -105,23 +106,29 @@
                             <option value="metros">Metros (Bobinas / UTP / Fibra - Alerta ≤ 100m)</option>
                             <option value="unidades">Unidades / Cantidad (Equipos - Alerta ≤ 10u)</option>
                         </select>
-                        <input type="number" id="qty" placeholder="Cantidad o Metros iniciales" step="any">
-                        <button onclick="addItem()">Registrar en Inventario</button>
+                        <input type="number" id="qty" placeholder="Cantidad o Metros" step="any">
+                        <input type="number" id="itemPrice" placeholder="Precio Unitario ($)" step="any">
+                    </div>
+                    <div class="form-row">
+                        <input type="text" id="projectName" placeholder="Proyecto a cargo (Ej: Redes CENDIT 2026)">
+                        <input type="text" id="assignedUser" placeholder="Usuario Asignado (Responsable)">
+                        <button onclick="addItem()">Registrar Artículo</button>
                     </div>
                 </div>
 
                 <div class="box">
-                    <h3>Inventario Exclusivo de tu Unidad</h3>
+                    <h3>Inventario Exclusivo y Asignaciones</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
                                     <th>ID</th>
-                                    <th>Dirección / Unidad</th>
-                                    <th>Descripción</th>
-                                    <th>N° Bien Nacional</th>
-                                    <th>Tipo Medida</th>
-                                    <th>Stock Actual</th>
+                                    <th>Unidad</th>
+                                    <th>Descripción / Proyecto</th>
+                                    <th>Bien Nacional</th>
+                                    <th>Asignado a</th>
+                                    <th>Precio ($)</th>
+                                    <th>Stock</th>
                                     <th>Estado</th>
                                 </tr>
                             </thead>
@@ -134,24 +141,24 @@
             <!-- VISTA 3: PRÉSTAMOS -->
             <div id="view-loans" class="view-section">
                 <div class="box">
-                    <h3>Registrar Solicitud de Préstamo (Requiere Aprobación de Supervisor)</h3>
+                    <h3>Registrar Solicitud de Préstamo (Aprobación de Supervisor)</h3>
                     <div class="form-row">
                         <select id="loanItemSelect"></select>
                         <select id="targetDirSelect"></select>
                         
                         <div>
-                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Emisor (Usuario Actual):</label>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Emisor:</label>
                             <input type="text" id="senderLockedInput" readonly>
                         </div>
                         
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Receptor Autorizado:</label>
-                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Escriba nombre, cédula o unidad...">
+                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Escriba nombre o cédula...">
                         </div>
                         <datalist id="usersList"></datalist>
                     </div>
                     <div class="form-row">
-                        <input type="number" id="loanQty" placeholder="Cantidad / Metros a prestar" step="any">
+                        <input type="number" id="loanQty" placeholder="Cantidad / Metros" step="any">
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Fecha estimada de Regreso:</label>
                             <input type="date" id="returnDate">
@@ -159,8 +166,8 @@
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">¿El artículo volverá al stock?</label>
                             <select id="isReturnableSelect">
-                                <option value="SI">Sí, es un préstamo temporal</option>
-                                <option value="NO">No volverá / Asignación Definitiva</option>
+                                <option value="SI">Sí, préstamo temporal</option>
+                                <option value="NO">No volverá / Definitivo</option>
                             </select>
                         </div>
                         <button onclick="createLoan()" style="align-self: flex-end;">Enviar Solicitud</button>
@@ -188,12 +195,45 @@
                 </div>
             </div>
 
-            <!-- VISTA 4: DIRECCIONES -->
+            <!-- VISTA 4: COTIZACIONES Y COMPRAS (NUEVO) -->
+            <div id="view-purchases" class="view-section">
+                <div class="box">
+                    <h3>Solicitud de Cotización de Compra</h3>
+                    <div class="form-row">
+                        <input type="text" id="purchaseDesc" placeholder="Descripción del material a cotizar">
+                        <input type="number" id="purchaseQty" placeholder="Cantidad requerida" step="any">
+                        <input type="number" id="purchasePrice" placeholder="Precio estimado unitario ($)" step="any">
+                        <button onclick="createPurchaseRequest()">Enviar a Jefe de Unidad</button>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Bandeja de Solicitudes y Devoluciones</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Solicitante</th>
+                                    <th>Material</th>
+                                    <th>Cant.</th>
+                                    <th>Precio Est. ($)</th>
+                                    <th>Estado / Observaciones del Jefe</th>
+                                    <th>Acciones (Supervisor)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="purchaseTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 5: DIRECCIONES -->
             <div id="view-directions" class="view-section">
                 <div class="box" id="addDirBox" style="display:none;">
                     <h3>Gestión de Direcciones y Unidades CENDIT</h3>
                     <div class="form-row">
-                        <input type="text" id="newDirName" placeholder="Nombre de la nueva unidad (Ej: Almacén DDI)">
+                        <input type="text" id="newDirName" placeholder="Nombre de la nueva unidad">
                         <button onclick="addDirection()">Crear Dirección</button>
                     </div>
                 </div>
@@ -210,7 +250,7 @@
                 </div>
             </div>
 
-            <!-- VISTA 5: USUARIOS -->
+            <!-- VISTA 6: USUARIOS -->
             <div id="view-users" class="view-section">
                 <div class="box">
                     <h3>Crear Nuevo Usuario del Sistema</h3>
@@ -223,7 +263,7 @@
                         </select>
                         <select id="newRole">
                             <option value="Operador">Operador</option>
-                            <option value="Administrador">Supervisor / Administrador</option>
+                            <option value="Administrador">Supervisor / Jefe de Unidad</option>
                         </select>
                         <button onclick="createUser()">Registrar Usuario</button>
                     </div>
@@ -248,6 +288,7 @@
         let currentRole = localStorage.getItem('cendit_role') || null;
         let currentTheme = localStorage.getItem('cendit_theme') || 'light';
         let allLoansCache = [];
+        let allPurchasesCache = [];
 
         document.documentElement.setAttribute('data-theme', currentTheme);
         updateThemeButtonText();
@@ -314,6 +355,7 @@
         function initSession() {
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
             document.getElementById('senderLockedInput').value = currentUser;
+            document.getElementById('assignedUser').value = currentUser;
             if (currentRole === 'Administrador') {
                 document.getElementById('menuUsers').style.display = 'block';
                 document.getElementById('addItemBox').style.display = 'block';
@@ -335,17 +377,19 @@
 
         async function loadAllData() {
             try {
-                const [dirRes, itemRes, loanRes, userRes] = await Promise.all([
+                const [dirRes, itemRes, loanRes, userRes, purRes] = await Promise.all([
                     fetch('/api/directions', { headers: getHeaders() }),
                     fetch('/api/items', { headers: getHeaders() }),
                     fetch('/api/loans', { headers: getHeaders() }),
-                    fetch('/api/users', { headers: getHeaders() })
+                    fetch('/api/users', { headers: getHeaders() }),
+                    fetch('/api/purchase-requests', { headers: getHeaders() })
                 ]);
 
                 const directions = await dirRes.json();
                 const items = await itemRes.json();
                 allLoansCache = await loanRes.json();
                 const users = await userRes.json();
+                allPurchasesCache = await purRes.json();
 
                 document.getElementById('statUsers').innerText = users.length;
                 document.getElementById('statDirs').innerText = directions.length;
@@ -371,25 +415,28 @@
                 users.forEach(u => {
                     const unitName = u.direction_name || 'Sin unidad';
                     usersList.innerHTML += `<option value="${u.username}">Cédula: ${u.cedula || 'N/A'} | Unidad: ${unitName} (${u.role})</option>`;
-                    if (u.cedula) {
-                        usersList.innerHTML += `<option value="${u.cedula}">Usuario: ${u.username} | Unidad: ${unitName} (${u.role})</option>`;
-                    }
                 });
 
+                // Alertas para Jefe de Unidad (Stock bajo y Solicitudes de compra pendientes)
                 const lowStockItems = items.filter(i => i.alerta_reposicion);
+                const pendingPurchases = allPurchasesCache.filter(p => p.status === 'PENDIENTE');
                 const badge = document.getElementById('notifBadge');
                 const notifList = document.getElementById('notifList');
-                if (lowStockItems.length > 0) {
-                    badge.innerText = lowStockItems.length;
+                
+                let alertCount = lowStockItems.length + pendingPurchases.length;
+                if (alertCount > 0) {
+                    badge.innerText = alertCount;
                     badge.style.display = 'inline-block';
                     notifList.innerHTML = '';
                     lowStockItems.forEach(i => {
-                        const unitLabel = i.unit_type === 'metros' ? 'metros' : 'unidades';
-                        notifList.innerHTML += `<div class="notification-item">⚠️ <b>${i.description}</b> en [${i.direction_name}]. Stock bajo: ${i.quantity} ${unitLabel}</div>`;
+                        notifList.innerHTML += `<div class="notification-item">⚠️ Stock bajo: <b>${i.description}</b> en [${i.direction_name}].</div>`;
+                    });
+                    pendingPurchases.forEach(p => {
+                        notifList.innerHTML += `<div class="notification-item">🛒 Solicitud compra pendiente de: <b>${p.username}</b> (${p.item_description})</div>`;
                     });
                 } else {
                     badge.style.display = 'none';
-                    notifList.innerHTML = '<div class="notification-item">No hay alertas de stock bajo. Todo en orden.</div>';
+                    notifList.innerHTML = '<div class="notification-item">No hay alertas recientes. Todo en orden.</div>';
                 }
 
                 const dirTable = document.getElementById('directionsTable');
@@ -409,10 +456,11 @@
                         <tr class="${i.alerta_reposicion ? 'alert-tr' : ''}">
                             <td>${i.id}</td>
                             <td>${i.direction_name || 'N/A'}</td>
-                            <td><b>${i.description}</b></td>
+                            <td><b>${i.description}</b><br><small style="color:var(--text-secondary);">Proyecto: ${i.project_name || 'General'}</small></td>
                             <td>${i.national_asset_number || 'N/A'}</td>
-                            <td>${unitText}</td>
-                            <td><b>${i.quantity}</b></td>
+                            <td>👤 ${i.assigned_username || 'N/A'}</td>
+                            <td>$${parseFloat(i.price || 0).toFixed(2)}</td>
+                            <td><b>${i.quantity}</b> ${unitText}</td>
                             <td>${i.alerta_reposicion ? '<span class="badge badge-red">⚠️ REPOSICIÓN</span>' : '<span class="badge badge-green">Óptimo</span>'}</td>
                         </tr>
                     `;
@@ -429,20 +477,12 @@
                     if (l.status === 'DEVUELTO') statusBadge = '<span class="badge badge-green">DEVUELTO</span>';
                     if (l.status === 'RECHAZADO') statusBadge = '<span class="badge badge-red">RECHAZADO</span>';
 
-                    const returnStatusBadge = l.is_returnable === 'SI' 
-                        ? `<span style="color:#059669; font-weight:600;">Regresa: ${l.return_date}</span>` 
-                        : `<span style="color:#ef4444; font-weight:600;">Definitivo</span>`;
-
                     let actionButtons = '';
-                    if (l.status === 'PENDIENTE') {
-                        if (currentRole === 'Administrador') {
-                            actionButtons = `
-                                <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px;">Aprobar</button>
-                                <button class="btn-danger" onclick="rejectLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Rechazar</button>
-                            `;
-                        } else {
-                            actionButtons = '<span style="font-size:0.8rem; color:var(--text-secondary);">Esperando Supervisor</span>';
-                        }
+                    if (l.status === 'PENDIENTE' && currentRole === 'Administrador') {
+                        actionButtons = `
+                            <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px;">Aprobar</button>
+                            <button class="btn-danger" onclick="rejectLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Rechazar</button>
+                        `;
                     } else if (l.status === 'ACTIVO') {
                         actionButtons = `
                             <button class="btn-warning" onclick="returnLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px; display:block; width:100%;">Cerrar</button>
@@ -454,22 +494,46 @@
                         actionButtons = 'Finalizado';
                     }
 
-                    const reportHtml = `
-                        <b>Emisor:</b> ${l.sender_responsible} <br>
-                        <small style="color:var(--text-secondary);">📁 ${l.sender_direction_name || 'Unidad Principal'}</small><br>
-                        ➔ <b>Receptor:</b> ${l.receiver_responsible} <br>
-                        <small style="color:var(--text-secondary);">🏢 ${l.target_direction_name}</small>
-                    `;
-
                     loansTable.innerHTML += `
                         <tr>
                             <td>${l.id}</td>
                             <td><b>${l.item_name}</b></td>
-                            <td>${reportHtml}</td>
+                            <td><b>Emisor:</b> ${l.sender_responsible} ➔ <b>Receptor:</b> ${l.receiver_responsible}</td>
                             <td><b>${l.quantity}</b></td>
-                            <td>${returnStatusBadge}</td>
+                            <td>${l.return_date}</td>
                             <td>${statusBadge}</td>
                             <td>${actionButtons}</td>
+                        </tr>
+                    `;
+                });
+
+                // Renderizar Cotizaciones y Compras
+                const purchaseTable = document.getElementById('purchaseTable');
+                purchaseTable.innerHTML = '';
+                allPurchasesCache.forEach(p => {
+                    let pBadge = '<span class="badge badge-yellow">PENDIENTE</span>';
+                    if (p.status === 'APROBADO') pBadge = '<span class="badge badge-green">APROBADO</span>';
+                    if (p.status === 'DEVUELTO') pBadge = '<span class="badge badge-red">DEVUELTO POR JEFE</span>';
+
+                    let pActions = '';
+                    if (currentRole === 'Administrador' && p.status === 'PENDIENTE') {
+                        pActions = `
+                            <button class="btn-info" onclick="approvePurchase(${p.id})" style="padding:4px 8px; font-size:0.75rem;">Aprobar</button>
+                            <button class="btn-warning" onclick="returnPurchase(${p.id})" style="padding:4px 8px; font-size:0.75rem;">Devolver</button>
+                        `;
+                    } else {
+                        pActions = 'N/A';
+                    }
+
+                    purchaseTable.innerHTML += `
+                        <tr>
+                            <td>${p.id}</td>
+                            <td><b>${p.username}</b><br><small>${p.direction_name || ''}</small></td>
+                            <td>${p.item_description}</td>
+                            <td><b>${p.quantity}</b></td>
+                            <td>$${parseFloat(p.estimated_price || 0).toFixed(2)}</td>
+                            <td>${pBadge}<br><small style="color:var(--text-secondary);">${p.supervisor_notes ? 'Nota: ' + p.supervisor_notes : ''}</small></td>
+                            <td>${pActions}</td>
                         </tr>
                     `;
                 });
@@ -494,107 +558,16 @@
             }
         }
 
-        function openReportModal(loanId) {
-            const l = allLoansCache.find(x => x.id === loanId);
-            if(!l) return alert('No se encontró la información del préstamo');
-
-            const content = `
-                <div style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:15px; margin-bottom:20px;">
-                    <h3 style="margin:0; font-size:1.2rem; font-weight:700;">REPÚBLICA BOLIVARIANA DE VENEZUELA</h3>
-                    <h4 style="margin:5px 0; font-size:1rem; font-weight:600; color:var(--accent);">CENTRO NACIONAL DE DESARROLLO E INVESTIGACIÓN EN TELECOMUNICACIONES (CENDIT)</h4>
-                    <p style="margin:0; font-size:0.85rem; color:var(--text-secondary);">ACTA DE PRÉSTAMO / ASIGNACIÓN INSTITUCIONAL DE MATERIALES Y EQUIPOS</p>
-                </div>
-
-                <div style="font-size:0.9rem; line-height:1.6; margin-bottom:20px;">
-                    <p><b>N° de Comprobante:</b> #${l.id} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Fecha de Solicitud:</b> ${l.date}</p>
-                    <p><b>Estatus del Acta:</b> <span style="font-weight:bold; color:var(--accent);">${l.status}</span></p>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px; font-size:0.9rem;">
-                    <div style="background:var(--bg-app); padding:15px; border-radius:8px; border:1px solid var(--border-color);">
-                        <b style="color:var(--accent);">DATOS DEL EMISOR (ENTREGA):</b><br>
-                        <b>Nombre:</b> ${l.sender_responsible}<br>
-                        <b>Cédula:</b> ${l.sender_cedula || 'N/A'}<br>
-                        <b>Unidad:</b> ${l.sender_direction_name || 'CENDIT'}
-                    </div>
-                    <div style="background:var(--bg-app); padding:15px; border-radius:8px; border:1px solid var(--border-color);">
-                        <b style="color:var(--accent);">DATOS DEL RECEPTOR (RECIBE):</b><br>
-                        <b>Nombre:</b> ${l.receiver_responsible}<br>
-                        <b>Cédula:</b> ${l.receiver_cedula || 'N/A'}<br>
-                        <b>Unidad Destino:</b> ${l.target_direction_name}
-                    </div>
-                </div>
-
-                <div style="margin-bottom:25px;">
-                    <h4 style="font-size:0.95rem; margin-bottom:8px; border-bottom:1px solid var(--border-color); padding-bottom:5px;">DETALLE DEL BIEN O MATERIAL</h4>
-                    <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                        <thead>
-                            <tr>
-                                <th style="border:1px solid var(--border-color); padding:8px; background:var(--table-th);">Descripción del Artículo</th>
-                                <th style="border:1px solid var(--border-color); padding:8px; background:var(--table-th);">N° Bien Nacional</th>
-                                <th style="border:1px solid var(--border-color); padding:8px; background:var(--table-th);">Cantidad / Metros</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td style="border:1px solid var(--border-color); padding:8px;"><b>${l.item_name}</b></td>
-                                <td style="border:1px solid var(--border-color); padding:8px;">${l.national_asset_number || 'N/A'}</td>
-                                <td style="border:1px solid var(--border-color); padding:8px;"><b>${l.quantity}</b> (${l.unit_type})</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <p style="margin-top:10px; font-size:0.85rem;"><b>Condición de Retorno:</b> ${l.is_returnable === 'SI' ? 'Préstamo temporal con fecha estimada de devolución: ' + l.return_date : 'Asignación definitiva / No retornable'}</p>
-                </div>
-
-                <div style="margin-top:40px; display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; text-align:center; font-size:0.85rem;">
-                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;">
-                        <b>ENTREGÓ (EMISOR)</b><br>
-                        <span style="color:var(--text-secondary); font-size:0.8rem;">Firma y Cédula</span>
-                    </div>
-                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;">
-                        <b>RECIBIÓ (RECEPTOR)</b><br>
-                        <span style="color:var(--text-secondary); font-size:0.8rem;">Firma y Cédula</span>
-                    </div>
-                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;">
-                        <b>SUPERVISOR / AUTORIZÓ</b><br>
-                        <span style="color:var(--text-secondary); font-size:0.8rem;">Firma y Sello</span>
-                    </div>
-                </div>
-            `;
-
-            document.getElementById('reportContent').innerHTML = content;
-            document.getElementById('reportModal').style.display = 'flex';
-        }
-
-        function closeReportModal() {
-            document.getElementById('reportModal').style.display = 'none';
-        }
-
-        async function addDirection() {
-            const name = document.getElementById('newDirName').value;
-            if(!name) return alert('Ingrese el nombre de la dirección');
-            const res = await fetch('/api/directions', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name }) });
-            const data = await res.json();
-            alert(data.message || data.error);
-            document.getElementById('newDirName').value = '';
-            loadAllData();
-        }
-
-        async function deleteDirection(id) {
-            if(!confirm('¿Seguro que desea eliminar esta dirección?')) return;
-            const res = await fetch(`/api/directions/${id}`, { method: 'DELETE', headers: getHeaders() });
-            const data = await res.json();
-            alert(data.message || data.error);
-            loadAllData();
-        }
-
         async function addItem() {
             const body = {
                 direction_id: document.getElementById('itemDirSelect').value,
                 description: document.getElementById('desc').value,
                 national_asset_number: document.getElementById('assetNum').value,
                 unit_type: document.getElementById('unitTypeSelect').value,
-                quantity: parseFloat(document.getElementById('qty').value)
+                quantity: parseFloat(document.getElementById('qty').value),
+                price: parseFloat(document.getElementById('itemPrice').value) || 0,
+                project_name: document.getElementById('projectName').value,
+                assigned_username: document.getElementById('assignedUser').value
             };
             if(!body.description || isNaN(body.quantity)) return alert('Complete los campos obligatorios');
             const res = await fetch('/api/items', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
@@ -603,6 +576,76 @@
             loadAllData();
         }
 
+        async function createPurchaseRequest() {
+            const body = {
+                item_description: document.getElementById('purchaseDesc').value,
+                quantity: parseFloat(document.getElementById('purchaseQty').value),
+                estimated_price: parseFloat(document.getElementById('purchasePrice').value) || 0
+            };
+            if(!body.item_description || isNaN(body.quantity)) return alert('Complete la descripción y cantidad');
+            const res = await fetch('/api/purchase-requests', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            document.getElementById('purchaseDesc').value = '';
+            document.getElementById('purchaseQty').value = '';
+            document.getElementById('purchasePrice').value = '';
+            loadAllData();
+        }
+
+        async function returnPurchase(id) {
+            const notes = prompt('Ingrese la observación o motivo de la devolución al usuario:');
+            if(notes === null) return;
+            const res = await fetch(`/api/purchase-requests/${id}/return`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ notes })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function approvePurchase(id) {
+            const res = await fetch(`/api/purchase-requests/${id}/approve`, { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        function openReportModal(loanId) {
+            const l = allLoansCache.find(x => x.id === loanId);
+            if(!l) return alert('No se encontró el préstamo');
+            const content = `
+                <div style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:15px; margin-bottom:20px;">
+                    <h3 style="margin:0;">REPÚBLICA BOLIVARIANA DE VENEZUELA</h3>
+                    <h4 style="color:var(--accent); margin:5px 0;">CENDIT - ACTA DE PRÉSTAMO / ASIGNACIÓN</h4>
+                </div>
+                <p><b>Comprobante:</b> #${l.id} | <b>Fecha:</b> ${l.date}</p>
+                <p><b>Emisor:</b> ${l.sender_responsible} ➔ <b>Receptor:</b> ${l.receiver_responsible}</p>
+                <p><b>Artículo:</b> ${l.item_name} | <b>Cantidad:</b> ${l.quantity} (${l.unit_type}) | <b>Precio:</b> $${l.price || 0}</p>
+                <div style="margin-top:40px; display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; text-align:center; font-size:0.85rem;">
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>ENTREGÓ</b></div>
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>RECIBIÓ</b></div>
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>SUPERVISOR</b></div>
+                </div>
+            `;
+            document.getElementById('reportContent').innerHTML = content;
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function closeReportModal() { document.getElementById('reportModal').style.display = 'none'; }
+        async function addDirection() {
+            const name = document.getElementById('newDirName').value;
+            if(!name) return;
+            await fetch('/api/directions', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name }) });
+            document.getElementById('newDirName').value = '';
+            loadAllData();
+        }
+        async function deleteDirection(id) {
+            if(!confirm('¿Eliminar dirección?')) return;
+            await fetch(`/api/directions/${id}`, { method: 'DELETE', headers: getHeaders() });
+            loadAllData();
+        }
         async function createLoan() {
             const body = {
                 item_id: document.getElementById('loanItemSelect').value,
@@ -612,41 +655,23 @@
                 return_date: document.getElementById('returnDate').value,
                 is_returnable: document.getElementById('isReturnableSelect').value
             };
-            if(!body.item_id || !body.target_direction_id || !body.receiver_responsible || isNaN(body.quantity)) {
-                return alert('Por favor complete todos los campos obligatorios.');
-            }
-            if(body.is_returnable === 'SI' && !body.return_date) {
-                return alert('Por favor indique la fecha estimada de regreso.');
-            }
             const res = await fetch('/api/loans', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
             const data = await res.json();
             alert(data.message || data.error);
             loadAllData();
         }
-
         async function approveLoan(id) {
-            if(!confirm('¿Aprobar esta solicitud de préstamo y descontar stock?')) return;
-            const res = await fetch(`/api/loans/${id}/approve`, { method: 'POST', headers: getHeaders() });
-            const data = await res.json();
-            alert(data.message || data.error);
+            await fetch(`/api/loans/${id}/approve`, { method: 'POST', headers: getHeaders() });
             loadAllData();
         }
-
         async function rejectLoan(id) {
-            if(!confirm('¿Rechazar esta solicitud?')) return;
-            const res = await fetch(`/api/loans/${id}/reject`, { method: 'POST', headers: getHeaders() });
-            const data = await res.json();
-            alert(data.message || data.error);
+            await fetch(`/api/loans/${id}/reject`, { method: 'POST', headers: getHeaders() });
             loadAllData();
         }
-
         async function returnLoan(id) {
-            const res = await fetch(`/api/loans/${id}/return`, { method: 'POST', headers: getHeaders() });
-            const data = await res.json();
-            alert(data.message || data.error);
+            await fetch(`/api/loans/${id}/return`, { method: 'POST', headers: getHeaders() });
             loadAllData();
         }
-
         async function createUser() {
             const body = {
                 username: document.getElementById('newUsername').value,
@@ -655,24 +680,11 @@
                 direction_id: document.getElementById('newUserDirSelect').value,
                 role: document.getElementById('newRole').value
             };
-            if(!body.username || !body.cedula || !body.password || !body.direction_id) {
-                return alert('Ingrese nombre, cédula, contraseña y seleccione la unidad/dirección.');
-            }
-            const res = await fetch('/api/users', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
-            const data = await res.json();
-            alert(data.message || data.error);
-            document.getElementById('newUsername').value = '';
-            document.getElementById('newCedula').value = '';
-            document.getElementById('newPassword').value = '';
-            document.getElementById('newUserDirSelect').value = '';
+            await fetch('/api/users', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
             loadAllData();
         }
-
         async function deleteUser(id) {
-            if(!confirm('¿Está seguro de eliminar este usuario?')) return;
-            const res = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: getHeaders() });
-            const data = await res.json();
-            alert(data.message || data.error);
+            await fetch(`/api/users/${id}`, { method: 'DELETE', headers: getHeaders() });
             loadAllData();
         }
     </script>

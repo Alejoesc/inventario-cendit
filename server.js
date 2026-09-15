@@ -1,19 +1,22 @@
 const express = require('express');
-const db = require('./database');
+const pool = require('./database');
 const app = express();
 
 app.use(express.json());
 app.use(express.static('public'));
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const username = req.headers['x-user'];
   if (!username) return res.status(401).json({ error: 'No autenticado' });
 
-  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
-    if (err || !user) return res.status(401).json({ error: 'Usuario no válido' });
-    req.user = user;
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario no válido' });
+    req.user = result.rows[0];
     next();
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 function adminMiddleware(req, res, next) {
@@ -23,219 +26,300 @@ function adminMiddleware(req, res, next) {
   next();
 }
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Ingrese usuario y contraseña' });
 
-  db.get(`SELECT * FROM users WHERE username = ? AND password = ?`, [username.trim(), password.trim()], (err, user) => {
-    if (err || !user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+  try {
+    const result = await pool.query(
+      'SELECT * FROM users WHERE username = $1 AND password = $2',
+      [username.trim(), password.trim()]
+    );
+    if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+    const user = result.rows[0];
     res.json({ message: 'Login exitoso', user: { username: user.username, role: user.role } });
-  });
-});
-
-app.get('/api/users', authMiddleware, (req, res) => {
-  db.all(`
-    SELECT users.*, directions.name as direction_name 
-    FROM users 
-    LEFT JOIN directions ON users.direction_id = directions.id
-  `, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-app.post('/api/users', authMiddleware, adminMiddleware, (req, res) => {
-  const { username, cedula, password, role, direction_id } = req.body;
-  db.run(
-    `INSERT INTO users (username, cedula, password, role, direction_id) VALUES (?, ?, ?, ?, ?)`, 
-    [username, cedula, password, role || 'Operador', direction_id || null], 
-    function(err) {
-      if (err) return res.status(500).json({ error: 'El usuario o la cédula ya existen' });
-      res.json({ message: 'Usuario creado exitosamente' });
-    }
-  );
-});
-
-app.delete('/api/users/:id', authMiddleware, adminMiddleware, (req, res) => {
-  db.run(`DELETE FROM users WHERE id = ? AND id != 1`, [req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ message: 'Usuario eliminado' });
-  });
-});
-
-app.get('/api/directions', authMiddleware, (req, res) => {
-  db.all(`SELECT * FROM directions`, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-app.post('/api/directions', authMiddleware, adminMiddleware, (req, res) => {
-  const { name } = req.body;
-  db.run(`INSERT INTO directions (name) VALUES (?)`, [name], function(err) {
-    if (err) return res.status(500).json({ error: 'La dirección ya existe' });
-    res.json({ message: 'Dirección agregada' });
-  });
-});
-
-app.delete('/api/directions/:id', authMiddleware, adminMiddleware, (req, res) => {
-  db.run(`DELETE FROM directions WHERE id = ?`, [req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ message: 'Dirección eliminada' });
-  });
-});
-
-// AISLAMIENTO DE INVENTARIO: Operadores solo ven su unidad, Administrador ve todo
-app.get('/api/items', authMiddleware, (req, res) => {
-  let query = `
-    SELECT items.*, directions.name as direction_name 
-    FROM items 
-    LEFT JOIN directions ON items.direction_id = directions.id
-  `;
-  let params = [];
-
-  if (req.user.role !== 'Administrador') {
-    query += ` WHERE items.direction_id = ?`;
-    params.push(req.user.direction_id);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
+});
 
-  db.all(query, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    const items = rows.map(i => {
+app.get('/api/users', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT users.*, directions.name as direction_name 
+      FROM users 
+      LEFT JOIN directions ON users.direction_id = directions.id
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/users', authMiddleware, adminMiddleware, async (req, res) => {
+  const { username, cedula, password, role, direction_id } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO users (username, cedula, password, role, direction_id) VALUES ($1, $2, $3, $4, $5)`,
+      [username, cedula, password, role || 'Operador', direction_id || null]
+    );
+    res.json({ message: 'Usuario creado exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: 'El usuario o la cédula ya existen' });
+  }
+});
+
+app.delete('/api/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1 AND id != 1', [req.params.id]);
+    res.json({ message: 'Usuario eliminado' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/directions', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM directions');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/directions', authMiddleware, adminMiddleware, async (req, res) => {
+  const { name } = req.body;
+  try {
+    await pool.query('INSERT INTO directions (name) VALUES ($1)', [name]);
+    res.json({ message: 'Dirección agregada' });
+  } catch (err) {
+    res.status(500).json({ error: 'La dirección ya existe' });
+  }
+});
+
+app.delete('/api/directions/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM directions WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Dirección eliminada' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AISLAMIENTO: Administrador ve todo, operadores solo su unidad
+app.get('/api/items', authMiddleware, async (req, res) => {
+  try {
+    let query = `
+      SELECT items.*, directions.name as direction_name 
+      FROM items 
+      LEFT JOIN directions ON items.direction_id = directions.id
+    `;
+    let params = [];
+
+    if (req.user.role !== 'Administrador') {
+      query += ` WHERE items.direction_id = $1`;
+      params.push(req.user.direction_id);
+    }
+
+    const result = await pool.query(query, params);
+    const items = result.rows.map(i => {
       const threshold = i.unit_type === 'metros' ? 100 : 10;
       return { ...i, alerta_reposicion: i.quantity <= threshold };
     });
     res.json(items);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/items', authMiddleware, (req, res) => {
-  let { direction_id, description, national_asset_number, unit_type, quantity } = req.body;
+app.post('/api/items', authMiddleware, async (req, res) => {
+  let { direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username } = req.body;
   
-  // Si es operador, se registra automáticamente en su propia unidad
   if (req.user.role !== 'Administrador') {
     direction_id = req.user.direction_id;
   }
 
-  db.run(
-    `INSERT INTO items (direction_id, description, national_asset_number, unit_type, quantity) VALUES (?, ?, ?, ?, ?)`,
-    [direction_id, description, national_asset_number || null, unit_type || 'unidades', quantity],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ message: 'Artículo registrado correctamente' });
-    }
-  );
-});
-
-// Aislamiento de préstamos por unidad
-app.get('/api/loans', authMiddleware, (req, res) => {
-  let query = `
-    SELECT loans.*, 
-           items.description as item_name, 
-           items.national_asset_number,
-           items.unit_type,
-           d1.name as source_direction_name, 
-           d2.name as target_direction_name,
-           u1.cedula as sender_cedula,
-           du1.name as sender_direction_name,
-           u2.cedula as receiver_cedula,
-           du2.name as receiver_direction_name
-    FROM loans 
-    JOIN items ON loans.item_id = items.id
-    LEFT JOIN directions d1 ON loans.source_direction_id = d1.id
-    LEFT JOIN directions d2 ON loans.target_direction_id = d2.id
-    LEFT JOIN users u1 ON loans.sender_responsible = u1.username
-    LEFT JOIN directions du1 ON u1.direction_id = du1.id
-    LEFT JOIN users u2 ON loans.receiver_responsible = u2.username
-    LEFT JOIN directions du2 ON u2.direction_id = du2.id
-  `;
-  let params = [];
-
-  if (req.user.role !== 'Administrador') {
-    query += ` WHERE loans.source_direction_id = ? OR loans.target_direction_id = ?`;
-    params.push(req.user.direction_id, req.user.direction_id);
+  try {
+    await pool.query(
+      `INSERT INTO items (direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [direction_id, description, national_asset_number || null, unit_type || 'unidades', quantity, price || 0, project_name || 'General', assigned_username || req.user.username]
+    );
+    res.json({ message: 'Artículo registrado y asignado correctamente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  db.all(query, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
 });
 
-app.post('/api/loans', authMiddleware, (req, res) => {
+app.get('/api/loans', authMiddleware, async (req, res) => {
+  try {
+    let query = `
+      SELECT loans.*, 
+             items.description as item_name, 
+             items.national_asset_number,
+             items.unit_type,
+             items.price,
+             items.project_name,
+             d1.name as source_direction_name, 
+             d2.name as target_direction_name,
+             u1.cedula as sender_cedula,
+             du1.name as sender_direction_name,
+             u2.cedula as receiver_cedula,
+             du2.name as receiver_direction_name
+      FROM loans 
+      JOIN items ON loans.item_id = items.id
+      LEFT JOIN directions d1 ON loans.source_direction_id = d1.id
+      LEFT JOIN directions d2 ON loans.target_direction_id = d2.id
+      LEFT JOIN users u1 ON loans.sender_responsible = u1.username
+      LEFT JOIN directions du1 ON u1.direction_id = du1.id
+      LEFT JOIN users u2 ON loans.receiver_responsible = u2.username
+      LEFT JOIN directions du2 ON u2.direction_id = du2.id
+    `;
+    let params = [];
+
+    if (req.user.role !== 'Administrador') {
+      query += ` WHERE loans.source_direction_id = $1 OR loans.target_direction_id = $1`;
+      params.push(req.user.direction_id);
+    }
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loans', authMiddleware, async (req, res) => {
   const { item_id, target_direction_id, receiver_responsible, quantity, return_date, is_returnable } = req.body;
   const sender_responsible = req.user.username;
 
-  db.get(`SELECT * FROM items WHERE id = ?`, [item_id], (err, item) => {
-    if (err || !item) return res.status(404).json({ error: 'Artículo no encontrado' });
+  try {
+    const itemRes = await pool.query('SELECT * FROM items WHERE id = $1', [item_id]);
+    if (itemRes.rows.length === 0) return res.status(404).json({ error: 'Artículo no encontrado' });
+    const item = itemRes.rows[0];
+
     if (item.quantity < quantity) return res.status(400).json({ error: 'Stock insuficiente' });
 
     const finalIsReturnable = is_returnable === 'SI' ? 'SI' : 'NO';
     const finalReturnDate = finalIsReturnable === 'SI' ? (return_date || 'Sin fecha') : 'No aplica';
 
-    db.run(
-      `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')`,
-      [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable],
-      (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación por el supervisor.' });
-      }
+    await pool.query(
+      `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
+      [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable]
     );
-  });
+    res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación por el supervisor.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
-  db.get(`SELECT * FROM loans WHERE id = ? AND status = 'PENDIENTE'`, [req.params.id], (err, loan) => {
-    if (err || !loan) return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
+app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loanRes = await pool.query("SELECT * FROM loans WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
+    if (loanRes.rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
+    const loan = loanRes.rows[0];
 
-    db.get(`SELECT * FROM items WHERE id = ?`, [loan.item_id], (err, item) => {
-      if (err || !item || item.quantity < loan.quantity) {
-        return res.status(400).json({ error: 'Stock insuficiente para aprobar esta solicitud' });
-      }
+    const itemRes = await pool.query('SELECT * FROM items WHERE id = $1', [loan.item_id]);
+    if (itemRes.rows.length === 0 || itemRes.rows[0].quantity < loan.quantity) {
+      return res.status(400).json({ error: 'Stock insuficiente para aprobar esta solicitud' });
+    }
 
-      db.serialize(() => {
-        db.run(`BEGIN TRANSACTION`);
-        db.run(`UPDATE items SET quantity = quantity - ? WHERE id = ?`, [loan.quantity, loan.item_id]);
-        db.run(`UPDATE loans SET status = 'ACTIVO' WHERE id = ?`, [req.params.id], (err) => {
-          if (err) {
-            db.run(`ROLLBACK`);
-            return res.status(500).json({ error: err.message });
-          }
-          db.run(`COMMIT`);
-          res.json({ message: 'Préstamo aprobado y stock descontado exitosamente' });
-        });
-      });
-    });
-  });
+    await pool.query('BEGIN');
+    await pool.query('UPDATE items SET quantity = quantity - $1 WHERE id = $2', [loan.quantity, loan.item_id]);
+    await pool.query("UPDATE loans SET status = 'ACTIVO' WHERE id = $1", [req.params.id]);
+    await pool.query('COMMIT');
+
+    res.json({ message: 'Préstamo aprobado y stock descontado exitosamente' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
-  db.run(`UPDATE loans SET status = 'RECHAZADO' WHERE id = ? AND status = 'PENDIENTE'`, [req.params.id], function(err) {
-    if (err || this.changes === 0) return res.status(400).json({ error: 'No se pudo rechazar la solicitud' });
+app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query("UPDATE loans SET status = 'RECHAZADO' WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
+    if (result.rowCount === 0) return res.status(400).json({ error: 'No se pudo rechazar la solicitud' });
     res.json({ message: 'Solicitud de préstamo rechazada.' });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/loans/:id/return', authMiddleware, (req, res) => {
-  db.get(`SELECT * FROM loans WHERE id = ? AND status = 'ACTIVO'`, [req.params.id], (err, loan) => {
-    if (err || !loan) return res.status(404).json({ error: 'Préstamo activo no encontrado' });
+app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
+  try {
+    const loanRes = await pool.query("SELECT * FROM loans WHERE id = $1 AND status = 'ACTIVO'", [req.params.id]);
+    if (loanRes.rows.length === 0) return res.status(404).json({ error: 'Préstamo activo no encontrado' });
+    const loan = loanRes.rows[0];
 
-    db.serialize(() => {
-      db.run(`BEGIN TRANSACTION`);
-      if (loan.is_returnable === 'SI') {
-        db.run(`UPDATE items SET quantity = quantity + ? WHERE id = ?`, [loan.quantity, loan.item_id]);
-      }
-      db.run(`UPDATE loans SET status = 'DEVUELTO' WHERE id = ?`, [req.params.id], (err) => {
-        if (err) {
-          db.run(`ROLLBACK`);
-          return res.status(500).json({ error: err.message });
-        }
-        db.run(`COMMIT`);
-        res.json({ message: 'Cierre de préstamo procesado con éxito' });
-      });
-    });
-  });
+    await pool.query('BEGIN');
+    if (loan.is_returnable === 'SI') {
+      await pool.query('UPDATE items SET quantity = quantity + $1 WHERE id = $2', [loan.quantity, loan.item_id]);
+    }
+    await pool.query("UPDATE loans SET status = 'DEVUELTO' WHERE id = $1", [req.params.id]);
+    await pool.query('COMMIT');
+
+    res.json({ message: 'Cierre de préstamo procesado con éxito' });
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// NUEVAS RUTAS: Solicitudes de Cotización de Compra con devolución por Supervisor
+app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
+  try {
+    let query = `
+      SELECT purchase_requests.*, users.username, users.cedula, directions.name as direction_name
+      FROM purchase_requests
+      JOIN users ON purchase_requests.user_id = users.id
+      LEFT JOIN directions ON purchase_requests.direction_id = directions.id
+    `;
+    let params = [];
+    if (req.user.role !== 'Administrador') {
+      query += ` WHERE purchase_requests.direction_id = $1`;
+      params.push(req.user.direction_id);
+    }
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
+  const { item_description, quantity, estimated_price } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')`,
+      [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0]
+    );
+    res.json({ message: 'Solicitud de cotización enviada al jefe de unidad.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-requests/:id/return', authMiddleware, adminMiddleware, async (req, res) => {
+  const { notes } = req.body;
+  try {
+    await pool.query(
+      `UPDATE purchase_requests SET status = 'DEVUELTO', supervisor_notes = $1 WHERE id = $2`,
+      [notes || 'Revisar especificaciones de cotización', req.params.id]
+    );
+    res.json({ message: 'Solicitud devuelta al usuario con observaciones.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-requests/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.query(`UPDATE purchase_requests SET status = 'APROBADO' WHERE id = $1`, [req.params.id]);
+    res.json({ message: 'Solicitud de cotización aprobada.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor CENDIT en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`Servidor CENDIT activo en puerto ${PORT}`));
