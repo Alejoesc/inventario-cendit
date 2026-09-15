@@ -86,6 +86,27 @@ app.post('/api/users', authMiddleware, supervisorOrAdminMiddleware, async (req, 
   }
 });
 
+app.put('/api/users/:id', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
+  const { username, cedula, email, password, role, direction_id } = req.body;
+  try {
+    if (password && password.trim() !== '') {
+      await db.query(
+        `UPDATE users SET username = $1, cedula = $2, email = $3, password = $4, role = $5, direction_id = $6 WHERE id = $7`,
+        [username, cedula, email || null, password, role, direction_id || null, req.params.id]
+      );
+    } else {
+      await db.query(
+        `UPDATE users SET username = $1, cedula = $2, email = $3, role = $4, direction_id = $5 WHERE id = $6`,
+        [username, cedula, email || null, role, direction_id || null, req.params.id]
+      );
+    }
+    await logAudit(req.user.username, 'EDITAR_USUARIO', `Se actualizó la información del usuario ID ${req.params.id} (${username}).`);
+    res.json({ message: 'Usuario actualizado exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar: el usuario, cédula o correo ya existen' });
+  }
+});
+
 app.delete('/api/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const userRes = await db.query('SELECT username FROM users WHERE id = $1', [req.params.id]);
@@ -210,7 +231,6 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
     if (itemRes.rows.length === 0) return res.status(404).json({ error: 'Artículo no encontrado' });
     const item = itemRes.rows[0];
 
-    // Restricción: El usuario solo puede solicitar préstamos de la unidad a la que pertenece
     if (req.user.role !== 'Administrador' && req.user.role !== 'Supervisor' && item.direction_id !== req.user.direction_id) {
       return res.status(403).json({ error: 'Solo puede solicitar préstamos de artículos pertenecientes a su propia unidad.' });
     }

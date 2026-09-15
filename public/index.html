@@ -20,6 +20,47 @@
         </div>
     </div>
 
+    <!-- MODAL DE EDITAR USUARIO -->
+    <div id="editUserModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; padding:15px;">
+        <div style="background:var(--card-bg); color:var(--text-main); width:100%; max-width:500px; padding:30px; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid var(--border-color);">
+            <h3 style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:10px;">Editar Usuario</h3>
+            <input type="hidden" id="editUserId">
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Nombre y Apellido:</label>
+                <input type="text" id="editUsername">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Cédula:</label>
+                <input type="text" id="editCedula">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Correo electrónico:</label>
+                <input type="email" id="editEmail">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Nueva Contraseña (dejar en blanco para mantener la actual):</label>
+                <input type="password" id="editPassword" placeholder="Nueva contraseña opcional">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Unidad / Dirección:</label>
+                <select id="editUserDirSelect"></select>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Rol:</label>
+                <select id="editRole">
+                    <option value="Usuario (Con permisos)">Usuario (Con permisos)</option>
+                    <option value="Usuario (Solo lectura)">Usuario (Solo lectura)</option>
+                    <option value="Supervisor">Supervisor</option>
+                    <option value="Administrador">Administrador</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="updateUser()" class="btn-info">Guardar Cambios</button>
+                <button onclick="closeEditUserModal()" class="btn-danger">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL DE LOGIN -->
     <div id="loginOverlay">
         <div class="login-card">
@@ -121,7 +162,7 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Gestión de equipos con Bien Nacional, cantidad o metros de cable/fibra. Préstamos filtrados por la unidad de pertenencia del usuario y chat integrado con despacho automático de inventario o solicitud de compra.</p>
+                    <p>Gestión completa con soporte de edición de usuarios, control de equipos, materiales y metros de cable/fibra, y módulo de auditoría.</p>
                 </div>
             </div>
 
@@ -131,7 +172,7 @@
                     <h3>Registrar Material (Equipo, Cantidad o Metros de Cable/Fibra)</h3>
                     <div class="form-row">
                         <select id="itemDirSelect"></select>
-                        <input type="text" id="desc" placeholder="Descripción (Ej: Cable UTP Cat6, Router Cisco, Fibra Monomodo)">
+                        <input type="text" id="desc" placeholder="Descripción (Ej: Cable UTP Cat6, Router Cisco, Fibra)">
                         <input type="text" id="assetNum" placeholder="N° Bien Nacional (Si aplica)">
                     </div>
                     <div class="form-row">
@@ -541,7 +582,6 @@
                     `;
                 });
 
-                // RESTRICCIÓN: Mostrar en préstamos solo los artículos de la unidad a la que pertenece el usuario (a menos que sea Admin o Supervisor)
                 const loanItemSelect = document.getElementById('loanItemSelect');
                 loanItemSelect.innerHTML = '<option value="">Seleccione artículo de tu unidad</option>';
                 
@@ -628,6 +668,18 @@
                 const usersTable = document.getElementById('usersTable');
                 usersTable.innerHTML = '';
                 allUsersCache.forEach(u => {
+                    let actionBtns = '';
+                    if (currentRole === 'Administrador' || currentRole === 'Supervisor') {
+                        actionBtns += `<button class="btn-warning" onclick="openEditUserModal(${u.id}, '${u.username.replace(/'/g, "\\'")}', '${u.cedula || ''}', '${u.email || ''}', ${u.direction_id || 'null'}, '${u.role}')" style="padding:4px 8px; font-size:0.75rem; margin-right:4px;">Editar</button>`;
+                        if (u.id !== 1) {
+                            actionBtns += `<button class="btn-danger" onclick="deleteUser(${u.id})" style="padding:4px 8px; font-size:0.75rem;">Eliminar</button>`;
+                        } else {
+                            actionBtns += `<span style="color:var(--text-secondary); font-size:0.8rem;">Protegido</span>`;
+                        }
+                    } else {
+                        actionBtns = '<span style="color:var(--text-secondary); font-size:0.8rem;">N/A</span>';
+                    }
+
                     usersTable.innerHTML += `
                         <tr>
                             <td>${u.id}</td>
@@ -636,7 +688,7 @@
                             <td>${u.email || 'N/A'}</td>
                             <td>${u.direction_name || 'N/A'}</td>
                             <td>${u.role}</td>
-                            <td>${u.id !== 1 && (currentRole === 'Administrador' || currentRole === 'Supervisor') ? `<button class="btn-danger" onclick="deleteUser(${u.id})">Eliminar</button>` : '<span style="color:var(--text-secondary); font-size:0.85rem;">Protegido</span>'}</td>
+                            <td>${actionBtns}</td>
                         </tr>
                     `;
                 });
@@ -670,6 +722,54 @@
                 });
             } catch (err) {
                 console.error("Error cargando auditoría:", err);
+            }
+        }
+
+        // FUNCIONES DE EDICIÓN DE USUARIOS
+        function openEditUserModal(id, username, cedula, email, directionId, role) {
+            document.getElementById('editUserId').value = id;
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editCedula').value = cedula === 'null' ? '' : cedula;
+            document.getElementById('editEmail').value = email === 'null' ? '' : email;
+            document.getElementById('editPassword').value = '';
+
+            const editDirSelect = document.getElementById('editUserDirSelect');
+            editDirSelect.innerHTML = '';
+            allDirectionsCache.forEach(d => {
+                editDirSelect.innerHTML += `<option value="${d.id}" ${d.id == directionId ? 'selected' : ''}>${d.name}</option>`;
+            });
+
+            document.getElementById('editRole').value = role;
+            document.getElementById('editUserModal').style.display = 'flex';
+        }
+
+        function closeEditUserModal() {
+            document.getElementById('editUserModal').style.display = 'none';
+        }
+
+        async function updateUser() {
+            const id = document.getElementById('editUserId').value;
+            const body = {
+                username: document.getElementById('editUsername').value.trim(),
+                cedula: document.getElementById('editCedula').value.trim(),
+                email: document.getElementById('editEmail').value.trim(),
+                password: document.getElementById('editPassword').value,
+                direction_id: document.getElementById('editUserDirSelect').value,
+                role: document.getElementById('editRole').value
+            };
+
+            if(!body.username) return alert('El nombre de usuario es obligatorio');
+
+            const res = await fetch(`/api/users/${id}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if(res.ok) {
+                closeEditUserModal();
+                loadAllData();
             }
         }
 
