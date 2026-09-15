@@ -9,6 +9,17 @@
 </head>
 <body>
 
+    <!-- MODAL DE PLANILLA OFICIAL PARA FIRMAS -->
+    <div id="reportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; padding:15px;">
+        <div style="background:var(--card-bg); color:var(--text-main); width:100%; max-width:750px; padding:30px; border-radius:12px; max-height:92vh; overflow-y:auto; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid var(--border-color);">
+            <div id="reportContent"></div>
+            <div style="margin-top:25px; display:flex; gap:12px; justify-content:flex-end;">
+                <button onclick="window.print()" class="btn-info">🖨️ Imprimir / Guardar Acta</button>
+                <button onclick="closeReportModal()" class="btn-danger">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL DE LOGIN -->
     <div id="loginOverlay">
         <div class="login-card">
@@ -76,7 +87,7 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Gestión automatizada con umbrales inteligentes, control de emisor bloqueado al usuario activo, aprobación requerida por supervisor y diseño adaptativo para cualquier dispositivo.</p>
+                    <p>Gestión automatizada de inventario institucional con generación de planillas oficiales para firmas y trazabilidad completa por usuario y unidad.</p>
                 </div>
             </div>
 
@@ -128,16 +139,16 @@
                         <select id="loanItemSelect"></select>
                         <select id="targetDirSelect"></select>
                         
-                        <!-- Emisor Bloqueado automáticamente al usuario logueado -->
+                        <!-- Emisor Bloqueado al usuario logueado -->
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Emisor (Usuario Actual):</label>
                             <input type="text" id="senderLockedInput" readonly>
                         </div>
                         
-                        <!-- Receptor (Seleccionado del sistema) -->
+                        <!-- Receptor (Muestra nombre, cédula y unidad) -->
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Receptor Autorizado:</label>
-                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Escriba nombre o cédula...">
+                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Escriba nombre, cédula o unidad...">
                         </div>
                         <datalist id="usersList"></datalist>
                     </div>
@@ -159,18 +170,18 @@
                 </div>
 
                 <div class="box">
-                    <h3>Control de Préstamos, Aprobaciones y Retornos</h3>
+                    <h3>Control de Préstamos, Aprobaciones y Reportes</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
                                     <th>ID</th>
                                     <th>Artículo</th>
-                                    <th>Origen ➔ Destino</th>
+                                    <th>Reporte de Emisión ➔ Destino</th>
                                     <th>Cant.</th>
                                     <th>Fecha / Tipo</th>
                                     <th>Estado</th>
-                                    <th>Acción (Supervisor / Cierre)</th>
+                                    <th>Acción / Planilla</th>
                                 </tr>
                             </thead>
                             <tbody id="loansTable"></tbody>
@@ -209,6 +220,9 @@
                         <input type="text" id="newUsername" placeholder="Nombre y Apellido">
                         <input type="text" id="newCedula" placeholder="Cédula (Ej: V-26123456)">
                         <input type="password" id="newPassword" placeholder="Contraseña">
+                        <select id="newUserDirSelect">
+                            <option value="">Seleccione Unidad / Dirección...</option>
+                        </select>
                         <select id="newRole">
                             <option value="Operador">Operador</option>
                             <option value="Administrador">Supervisor / Administrador</option>
@@ -221,7 +235,7 @@
                     <div class="table-responsive">
                         <table>
                             <thead>
-                                <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Rol</th><th>Acciones</th></tr>
+                                <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Unidad</th><th>Rol</th><th>Acciones</th></tr>
                             </thead>
                             <tbody id="usersTable"></tbody>
                         </table>
@@ -235,6 +249,7 @@
         let currentUser = localStorage.getItem('cendit_user') || null;
         let currentRole = localStorage.getItem('cendit_role') || null;
         let currentTheme = localStorage.getItem('cendit_theme') || 'light';
+        let allLoansCache = [];
 
         document.documentElement.setAttribute('data-theme', currentTheme);
         updateThemeButtonText();
@@ -300,7 +315,7 @@
 
         function initSession() {
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
-            document.getElementById('senderLockedInput').value = currentUser; // Bloquea el emisor al usuario actual
+            document.getElementById('senderLockedInput').value = currentUser;
             if (currentRole === 'Administrador') {
                 document.getElementById('menuUsers').style.display = 'block';
                 document.getElementById('addItemBox').style.display = 'block';
@@ -331,29 +346,36 @@
 
                 const directions = await dirRes.json();
                 const items = await itemRes.json();
-                const loans = await loanRes.json();
+                allLoansCache = await loanRes.json();
                 const users = await userRes.json();
 
                 document.getElementById('statUsers').innerText = users.length;
                 document.getElementById('statDirs').innerText = directions.length;
                 document.getElementById('statItems').innerText = items.length;
-                document.getElementById('statLoans').innerText = loans.filter(l => l.status === 'ACTIVO').length;
+                document.getElementById('statLoans').innerText = allLoansCache.filter(l => l.status === 'ACTIVO').length;
 
                 const itemDir = document.getElementById('itemDirSelect');
                 const targetDir = document.getElementById('targetDirSelect');
+                const newUserDir = document.getElementById('newUserDirSelect');
+                
                 itemDir.innerHTML = '<option value="">Seleccione Dirección Propietaria</option>';
                 targetDir.innerHTML = '<option value="">Seleccione Dirección Destino</option>';
+                newUserDir.innerHTML = '<option value="">Seleccione Unidad / Dirección...</option>';
+
                 directions.forEach(d => {
                     itemDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
                     targetDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    newUserDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
                 });
 
+                // Autocompletar mostrando Nombre, Cédula y Unidad
                 const usersList = document.getElementById('usersList');
                 usersList.innerHTML = '';
                 users.forEach(u => {
-                    usersList.innerHTML += `<option value="${u.username}">Cédula: ${u.cedula || 'N/A'} (${u.role})</option>`;
+                    const unitName = u.direction_name || 'Sin unidad';
+                    usersList.innerHTML += `<option value="${u.username}">Cédula: ${u.cedula || 'N/A'} | Unidad: ${unitName} (${u.role})</option>`;
                     if (u.cedula) {
-                        usersList.innerHTML += `<option value="${u.cedula}">Usuario: ${u.username} (${u.role})</option>`;
+                        usersList.innerHTML += `<option value="${u.cedula}">Usuario: ${u.username} | Unidad: ${unitName} (${u.role})</option>`;
                     }
                 });
 
@@ -404,7 +426,7 @@
 
                 const loansTable = document.getElementById('loansTable');
                 loansTable.innerHTML = '';
-                loans.forEach(l => {
+                allLoansCache.forEach(l => {
                     let statusBadge = '<span class="badge badge-yellow">PENDIENTE</span>';
                     if (l.status === 'ACTIVO') statusBadge = '<span class="badge badge-red">ACTIVO</span>';
                     if (l.status === 'DEVUELTO') statusBadge = '<span class="badge badge-green">DEVUELTO</span>';
@@ -412,29 +434,42 @@
 
                     const returnStatusBadge = l.is_returnable === 'SI' 
                         ? `<span style="color:#059669; font-weight:600;">Regresa: ${l.return_date}</span>` 
-                        : `<span style="color:#ef4444; font-weight:600;">No volverá (Definitivo)</span>`;
+                        : `<span style="color:#ef4444; font-weight:600;">Definitivo</span>`;
 
                     let actionButtons = '';
                     if (l.status === 'PENDIENTE') {
                         if (currentRole === 'Administrador') {
                             actionButtons = `
-                                <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-right: 5px;">Aprobar</button>
+                                <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px;">Aprobar</button>
                                 <button class="btn-danger" onclick="rejectLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Rechazar</button>
                             `;
                         } else {
                             actionButtons = '<span style="font-size:0.8rem; color:var(--text-secondary);">Esperando Supervisor</span>';
                         }
                     } else if (l.status === 'ACTIVO') {
-                        actionButtons = `<button class="btn-warning" onclick="returnLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Cerrar / Devolver</button>`;
+                        actionButtons = `
+                            <button class="btn-warning" onclick="returnLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px; display:block; width:100%;">Cerrar</button>
+                            <button class="btn-info" onclick="openReportModal(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; display:block; width:100%;">📄 Planilla</button>
+                        `;
+                    } else if (l.status === 'DEVUELTO') {
+                        actionButtons = `<button class="btn-info" onclick="openReportModal(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">📄 Planilla</button>`;
                     } else {
                         actionButtons = 'Finalizado';
                     }
 
+                    // Reporte visual de quién hizo el préstamo y la unidad
+                    const reportHtml = `
+                        <b>Emisor:</b> ${l.sender_responsible} <br>
+                        <small style="color:var(--text-secondary);">📁 ${l.sender_direction_name || 'Unidad Principal'}</small><br>
+                        ➔ <b>Receptor:</b> ${l.receiver_responsible} <br>
+                        <small style="color:var(--text-secondary);">🏢 ${l.target_direction_name}</small>
+                    `;
+
                     loansTable.innerHTML += `
                         <tr>
                             <td>${l.id}</td>
-                            <td>${l.item_name}</td>
-                            <td>${l.source_direction_name} (${l.sender_responsible}) ➔ <br>${l.target_direction_name} (${l.receiver_responsible})</td>
+                            <td><b>${l.item_name}</b></td>
+                            <td>${reportHtml}</td>
                             <td><b>${l.quantity}</b></td>
                             <td>${returnStatusBadge}</td>
                             <td>${statusBadge}</td>
@@ -451,6 +486,7 @@
                             <td>${u.id}</td>
                             <td>${u.username}</td>
                             <td>${u.cedula || 'N/A'}</td>
+                            <td>${u.direction_name || 'N/A'}</td>
                             <td>${u.role}</td>
                             <td>${u.id !== 1 && currentRole === 'Administrador' ? `<button class="btn-danger" onclick="deleteUser(${u.id})">Eliminar</button>` : '<span style="color:var(--text-secondary); font-size:0.85rem;">Protegido</span>'}</td>
                         </tr>
@@ -460,6 +496,83 @@
             } catch (e) {
                 console.error("Error cargando datos:", e);
             }
+        }
+
+        // Generar Planilla / Acta de Préstamo oficial para firmas
+        function openReportModal(loanId) {
+            const l = allLoansCache.find(x => x.id === loanId);
+            if(!l) return alert('No se encontró la información del préstamo');
+
+            const content = `
+                <div style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:15px; margin-bottom:20px;">
+                    <h3 style="margin:0; font-size:1.2rem; font-weight:700;">REPÚBLICA BOLIVARIANA DE VENEZUELA</h3>
+                    <h4 style="margin:5px 0; font-size:1rem; font-weight:600; color:var(--accent);">CENTRO NACIONAL DE DESARROLLO E INVESTIGACIÓN EN TELECOMUNICACIONES (CENDIT)</h4>
+                    <p style="margin:0; font-size:0.85rem; color:var(--text-secondary);">ACTA DE PRÉSTAMO / ASIGNACIÓN INSTITUCIONAL DE MATERIALES Y EQUIPOS</p>
+                </div>
+
+                <div style="font-size:0.9rem; line-height:1.6; margin-bottom:20px;">
+                    <p><b>N° de Comprobante:</b> #${l.id} &nbsp;&nbsp;|&nbsp;&nbsp; <b>Fecha de Solicitud:</b> ${l.date}</p>
+                    <p><b>Estatus del Acta:</b> <span style="font-weight:bold; color:var(--accent);">${l.status}</span></p>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:20px; font-size:0.9rem;">
+                    <div style="background:var(--bg-app); padding:15px; border-radius:8px; border:1px solid var(--border-color);">
+                        <b style="color:var(--accent);">DATOS DEL EMISOR (ENTREGA):</b><br>
+                        <b>Nombre:</b> ${l.sender_responsible}<br>
+                        <b>Cédula:</b> ${l.sender_cedula || 'N/A'}<br>
+                        <b>Unidad:</b> ${l.sender_direction_name || 'CENDIT'}
+                    </div>
+                    <div style="background:var(--bg-app); padding:15px; border-radius:8px; border:1px solid var(--border-color);">
+                        <b style="color:var(--accent);">DATOS DEL RECEPTOR (RECIBE):</b><br>
+                        <b>Nombre:</b> ${l.receiver_responsible}<br>
+                        <b>Cédula:</b> ${l.receiver_cedula || 'N/A'}<br>
+                        <b>Unidad Destino:</b> ${l.target_direction_name}
+                    </div>
+                </div>
+
+                <div style="margin-bottom:25px;">
+                    <h4 style="font-size:0.95rem; margin-bottom:8px; border-bottom:1px solid var(--border-color); padding-bottom:5px;">DETALLE DEL BIEN O MATERIAL</h4>
+                    <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                        <thead>
+                            <tr>
+                                <th style="border:1px solid var(--border-color); padding:8px; background:var(--table-th);">Descripción del Artículo</th>
+                                <th style="border:1px solid var(--border-color); padding:8px; background:var(--table-th);">N° Bien Nacional</th>
+                                <th style="border:1px solid var(--border-color); padding:8px; background:var(--table-th);">Cantidad / Metros</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="border:1px solid var(--border-color); padding:8px;"><b>${l.item_name}</b></td>
+                                <td style="border:1px solid var(--border-color); padding:8px;">${l.national_asset_number || 'N/A'}</td>
+                                <td style="border:1px solid var(--border-color); padding:8px;"><b>${l.quantity}</b> (${l.unit_type})</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p style="margin-top:10px; font-size:0.85rem;"><b>Condición de Retorno:</b> ${l.is_returnable === 'SI' ? 'Préstamo temporal con fecha estimada de devolución: ' + l.return_date : 'Asignación definitiva / No retornable'}</p>
+                </div>
+
+                <div style="margin-top:40px; display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; text-align:center; font-size:0.85rem;">
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;">
+                        <b>ENTREGÓ (EMISOR)</b><br>
+                        <span style="color:var(--text-secondary); font-size:0.8rem;">Firma y Cédula</span>
+                    </div>
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;">
+                        <b>RECIBIÓ (RECEPTOR)</b><br>
+                        <span style="color:var(--text-secondary); font-size:0.8rem;">Firma y Cédula</span>
+                    </div>
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;">
+                        <b>SUPERVISOR / AUTORIZÓ</b><br>
+                        <span style="color:var(--text-secondary); font-size:0.8rem;">Firma y Sello</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = content;
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').style.display = 'none';
         }
 
         async function addDirection() {
@@ -544,15 +657,19 @@
                 username: document.getElementById('newUsername').value,
                 cedula: document.getElementById('newCedula').value,
                 password: document.getElementById('newPassword').value,
+                direction_id: document.getElementById('newUserDirSelect').value,
                 role: document.getElementById('newRole').value
             };
-            if(!body.username || !body.cedula || !body.password) return alert('Ingrese nombre, cédula y contraseña');
+            if(!body.username || !body.cedula || !body.password || !body.direction_id) {
+                return alert('Ingrese nombre, cédula, contraseña y seleccione la unidad/dirección.');
+            }
             const res = await fetch('/api/users', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
             const data = await res.json();
             alert(data.message || data.error);
             document.getElementById('newUsername').value = '';
             document.getElementById('newCedula').value = '';
             document.getElementById('newPassword').value = '';
+            document.getElementById('newUserDirSelect').value = '';
             loadAllData();
         }
 

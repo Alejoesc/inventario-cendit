@@ -10,10 +10,12 @@ db.serialize(() => {
     username TEXT UNIQUE NOT NULL,
     cedula TEXT UNIQUE,
     password TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'Operador'
+    role TEXT NOT NULL DEFAULT 'Operador',
+    direction_id INTEGER,
+    FOREIGN KEY(direction_id) REFERENCES directions(id) ON DELETE SET NULL
   )`, () => {
-    db.run(`ALTER TABLE users ADD COLUMN cedula TEXT`, (err) => {});
-    db.run(`INSERT OR IGNORE INTO users (id, username, cedula, password, role) VALUES (1, 'admin', 'V-00000000', 'admin123', 'Administrador')`);
+    db.run(`ALTER TABLE users ADD COLUMN direction_id INTEGER`, (err) => {});
+    db.run(`INSERT OR IGNORE INTO users (id, username, cedula, password, role, direction_id) VALUES (1, 'admin', 'V-00000000', 'admin123', 'Administrador', 1)`);
   });
 
   db.run(`CREATE TABLE IF NOT EXISTS directions (

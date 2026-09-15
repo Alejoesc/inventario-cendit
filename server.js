@@ -34,18 +34,26 @@ app.post('/api/login', (req, res) => {
 });
 
 app.get('/api/users', authMiddleware, (req, res) => {
-  db.all(`SELECT id, username, cedula, role FROM users`, [], (err, rows) => {
+  db.all(`
+    SELECT users.*, directions.name as direction_name 
+    FROM users 
+    LEFT JOIN directions ON users.direction_id = directions.id
+  `, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
 });
 
 app.post('/api/users', authMiddleware, adminMiddleware, (req, res) => {
-  const { username, cedula, password, role } = req.body;
-  db.run(`INSERT INTO users (username, cedula, password, role) VALUES (?, ?, ?, ?)`, [username, cedula, password, role || 'Operador'], function(err) {
-    if (err) return res.status(500).json({ error: 'El usuario o la cédula ya existen' });
-    res.json({ message: 'Usuario creado exitosamente' });
-  });
+  const { username, cedula, password, role, direction_id } = req.body;
+  db.run(
+    `INSERT INTO users (username, cedula, password, role, direction_id) VALUES (?, ?, ?, ?, ?)`, 
+    [username, cedula, password, role || 'Operador', direction_id || null], 
+    function(err) {
+      if (err) return res.status(500).json({ error: 'El usuario o la cédula ya existen' });
+      res.json({ message: 'Usuario creado exitosamente' });
+    }
+  );
 });
 
 app.delete('/api/users/:id', authMiddleware, adminMiddleware, (req, res) => {
@@ -104,23 +112,36 @@ app.post('/api/items', authMiddleware, (req, res) => {
   );
 });
 
+// Listado enriquecido de préstamos con información de unidades y cédulas de emisor/receptor
 app.get('/api/loans', authMiddleware, (req, res) => {
   db.all(`
-    SELECT loans.*, items.description as item_name, d1.name as source_direction_name, d2.name as target_direction_name 
+    SELECT loans.*, 
+           items.description as item_name, 
+           items.national_asset_number,
+           items.unit_type,
+           d1.name as source_direction_name, 
+           d2.name as target_direction_name,
+           u1.cedula as sender_cedula,
+           du1.name as sender_direction_name,
+           u2.cedula as receiver_cedula,
+           du2.name as receiver_direction_name
     FROM loans 
     JOIN items ON loans.item_id = items.id
     LEFT JOIN directions d1 ON loans.source_direction_id = d1.id
     LEFT JOIN directions d2 ON loans.target_direction_id = d2.id
+    LEFT JOIN users u1 ON loans.sender_responsible = u1.username
+    LEFT JOIN directions du1 ON u1.direction_id = du1.id
+    LEFT JOIN users u2 ON loans.receiver_responsible = u2.username
+    LEFT JOIN directions du2 ON u2.direction_id = du2.id
   `, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
 });
 
-// Crear préstamo (queda PENDIENTE de aprobación por supervisor y descuenta stock al aprobarse)
 app.post('/api/loans', authMiddleware, (req, res) => {
   const { item_id, target_direction_id, receiver_responsible, quantity, return_date, is_returnable } = req.body;
-  const sender_responsible = req.user.username; // Emisor bloqueado al usuario logueado
+  const sender_responsible = req.user.username;
 
   db.get(`SELECT * FROM items WHERE id = ?`, [item_id], (err, item) => {
     if (err || !item) return res.status(404).json({ error: 'Artículo no encontrado' });
@@ -140,7 +161,6 @@ app.post('/api/loans', authMiddleware, (req, res) => {
   });
 });
 
-// Aprobar préstamo (Solo Supervisor/Admin) -> Descuenta stock y pasa a ACTIVO
 app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
   db.get(`SELECT * FROM loans WHERE id = ? AND status = 'PENDIENTE'`, [req.params.id], (err, loan) => {
     if (err || !loan) return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
@@ -166,7 +186,6 @@ app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, (req, res) =
   });
 });
 
-// Rechazar préstamo (Solo Supervisor/Admin)
 app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
   db.run(`UPDATE loans SET status = 'RECHAZADO' WHERE id = ? AND status = 'PENDIENTE'`, [req.params.id], function(err) {
     if (err || this.changes === 0) return res.status(400).json({ error: 'No se pudo rechazar la solicitud' });
@@ -174,7 +193,6 @@ app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, (req, res) =>
   });
 });
 
-// Devolver préstamo / Cerrar ciclo
 app.post('/api/loans/:id/return', authMiddleware, (req, res) => {
   db.get(`SELECT * FROM loans WHERE id = ? AND status = 'ACTIVO'`, [req.params.id], (err, loan) => {
     if (err || !loan) return res.status(404).json({ error: 'Préstamo activo no encontrado' });

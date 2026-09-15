@@ -58,7 +58,6 @@ body { font-family: 'Inter', sans-serif; background-color: var(--bg-app); color:
 aside {
     width: 260px; background-color: var(--sidebar-bg); color: var(--sidebar-text);
     display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid var(--border-color);
-    transition: transform 0.3s ease;
 }
 .brand-header {
     background-color: var(--accent); color: white; padding: 22px;
@@ -145,7 +144,6 @@ button:hover { background: var(--accent-hover); }
 .btn-info { background: #3b82f6; }
 .btn-info:hover { background: #2563eb; }
 
-/* Contenedor responsivo para tablas */
 .table-responsive { width: 100%; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; min-width: 650px; }
 th, td { padding: 12px 16px; border-bottom: 1px solid var(--border-color); text-align: left; }
@@ -157,7 +155,6 @@ tr:hover td { background: rgba(0,0,0,0.02); }
 .badge-green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 .badge-yellow { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
 
-/* Adaptabilidad Mobile */
 @media(max-width: 768px) {
     body { flex-direction: column; height: auto; overflow: auto; }
     aside { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border-color); }
@@ -166,4 +163,12 @@ tr:hover td { background: rgba(0,0,0,0.02); }
     .sidebar-menu a { padding: 10px 12px; font-size: 0.85rem; }
     .wrapper { height: auto; overflow: visible; }
     main { padding: 15px; }
+}
+
+/* Estilos de impresión para la planillita oficial */
+@media print {
+    body * { visibility: hidden; }
+    #reportModal, #reportModal * { visibility: visible; }
+    #reportModal { position: absolute; left: 0; top: 0; width: 100%; background: white !important; color: black !important; padding: 0; }
+    button { display: none !important; }
 }
