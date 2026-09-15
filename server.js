@@ -33,6 +33,14 @@ function adminMiddleware(req, res, next) {
   next();
 }
 
+async function logAudit(username, action, details) {
+  try {
+    await db.query('INSERT INTO audit_logs (username, action, details) VALUES ($1, $2, $3)', [username, action, details]);
+  } catch (err) {
+    console.error('Error registrando auditoría:', err.message);
+  }
+}
+
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Ingrese usuario o cédula y contraseña' });
@@ -44,6 +52,7 @@ app.post('/api/login', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario, cédula o contraseña incorrectos' });
     const user = result.rows[0];
+    await logAudit(user.username, 'INICIO_SESIÓN', `El usuario ${user.username} inició sesión.`);
     res.json({ message: 'Login exitoso', user: { username: user.username, role: user.role } });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -70,6 +79,7 @@ app.post('/api/users', authMiddleware, supervisorOrAdminMiddleware, async (req, 
       `INSERT INTO users (username, cedula, email, password, role, direction_id) VALUES ($1, $2, $3, $4, $5, $6)`,
       [username, cedula, email || null, password, role || 'Usuario (Con permisos)', direction_id || null]
     );
+    await logAudit(req.user.username, 'CREAR_USUARIO', `Se creó el usuario ${username} con rol ${role}.`);
     res.json({ message: 'Usuario creado exitosamente' });
   } catch (err) {
     res.status(500).json({ error: 'El usuario, la cédula o el correo ya existen' });
@@ -78,7 +88,10 @@ app.post('/api/users', authMiddleware, supervisorOrAdminMiddleware, async (req, 
 
 app.delete('/api/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const userRes = await db.query('SELECT username FROM users WHERE id = $1', [req.params.id]);
+    const targetName = userRes.rows.length > 0 ? userRes.rows[0].username : 'ID ' + req.params.id;
     await db.query('DELETE FROM users WHERE id = $1 AND id != 1', [req.params.id]);
+    await logAudit(req.user.username, 'ELIMINAR_USUARIO', `Se eliminó al usuario ${targetName}.`);
     res.json({ message: 'Usuario eliminado' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -98,6 +111,7 @@ app.post('/api/directions', authMiddleware, supervisorOrAdminMiddleware, async (
   const { name } = req.body;
   try {
     await db.query('INSERT INTO directions (name) VALUES ($1)', [name]);
+    await logAudit(req.user.username, 'CREAR_UNIDAD', `Se creó la unidad ${name}.`);
     res.json({ message: 'Dirección agregada' });
   } catch (err) {
     res.status(500).json({ error: 'La dirección ya existe' });
@@ -107,6 +121,7 @@ app.post('/api/directions', authMiddleware, supervisorOrAdminMiddleware, async (
 app.delete('/api/directions/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     await db.query('DELETE FROM directions WHERE id = $1', [req.params.id]);
+    await logAudit(req.user.username, 'ELIMINAR_UNIDAD', `Se eliminó la unidad ID ${req.params.id}.`);
     res.json({ message: 'Dirección eliminada' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -120,13 +135,7 @@ app.get('/api/items', authMiddleware, async (req, res) => {
       FROM items 
       LEFT JOIN directions ON items.direction_id = directions.id
     `;
-    let params = [];
-
-    if (req.user.role === 'Administrador' || req.user.role === 'Supervisor' || req.user.role === 'Usuario (Solo lectura)') {
-      // Pueden ver todo o su unidad según corresponda
-    }
-
-    const result = await db.query(queryText, params);
+    const result = await db.query(queryText);
     const items = result.rows.map(i => {
       const threshold = i.unit_type === 'metros' ? 100 : 10;
       return { ...i, alerta_reposicion: i.quantity <= threshold };
@@ -152,6 +161,7 @@ app.post('/api/items', authMiddleware, async (req, res) => {
       `INSERT INTO items (direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [direction_id, description, national_asset_number || null, unit_type || 'unidades', quantity, price || 0, project_name || 'General', assigned_username || req.user.username]
     );
+    await logAudit(req.user.username, 'REGISTRAR_MATERIAL', `Se registró el material: ${description} (Cant: ${quantity}).`);
     res.json({ message: 'Artículo registrado y asignado correctamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -209,6 +219,7 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
       `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
       [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable]
     );
+    await logAudit(req.user.username, 'SOLICITUD_PRÉSTAMO', `Solicitud de préstamo para artículo ID ${item_id} (Cant: ${quantity}).`);
     res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -237,6 +248,7 @@ app.post('/api/loans/:id/approve', authMiddleware, supervisorOrAdminMiddleware, 
     await client.query('COMMIT');
     client.release();
 
+    await logAudit(req.user.username, 'APROBAR_PRÉSTAMO', `Se aprobó el préstamo ID ${req.params.id}.`);
     res.json({ message: 'Préstamo aprobado y stock descontado' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
@@ -249,6 +261,7 @@ app.post('/api/loans/:id/reject', authMiddleware, supervisorOrAdminMiddleware, a
   try {
     const result = await db.query("UPDATE loans SET status = 'RECHAZADO' WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
     if (result.rowCount === 0) return res.status(400).json({ error: 'No se pudo rechazar' });
+    await logAudit(req.user.username, 'RECHAZAR_PRÉSTAMO', `Se rechazó el préstamo ID ${req.params.id}.`);
     res.json({ message: 'Solicitud rechazada.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -274,6 +287,7 @@ app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
     await client.query('COMMIT');
     client.release();
 
+    await logAudit(req.user.username, 'DEVOLUCIÓN_PRÉSTAMO', `Se procesó la devolución del préstamo ID ${req.params.id}.`);
     res.json({ message: 'Cierre de préstamo procesado con éxito' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
@@ -304,6 +318,7 @@ app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
       `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')`,
       [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0]
     );
+    await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de compra para: ${item_description}.`);
     res.json({ message: 'Solicitud de cotización enviada al supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -317,6 +332,7 @@ app.post('/api/purchase-requests/:id/return', authMiddleware, supervisorOrAdminM
       `UPDATE purchase_requests SET status = 'DEVUELTO', supervisor_notes = $1 WHERE id = $2`,
       [notes || 'Revisar especificaciones', req.params.id]
     );
+    await logAudit(req.user.username, 'DEVOLVER_COMPRA', `Se devolvió la solicitud de compra ID ${req.params.id}.`);
     res.json({ message: 'Devuelto al usuario con observaciones.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -326,20 +342,21 @@ app.post('/api/purchase-requests/:id/return', authMiddleware, supervisorOrAdminM
 app.post('/api/purchase-requests/:id/approve', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     await db.query(`UPDATE purchase_requests SET status = 'APROBADO' WHERE id = $1`, [req.params.id]);
+    await logAudit(req.user.username, 'APROBAR_COMPRA', `Se aprobó la solicitud de compra ID ${req.params.id}.`);
     res.json({ message: 'Solicitud aprobada.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// CHAT Y SOLICITUDES
+// CHAT Y SOLICITUDES CON JERARQUÍA DE PERMISOS
 app.get('/api/messages', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
       SELECT messages.*, 
              u1.username, u1.role, d1.name as direction_name,
              d2.name as target_direction_name,
-             u2.username as target_username
+             u2.username as target_username, u2.role as target_role
       FROM messages
       JOIN users u1 ON messages.sender_id = u1.id
       LEFT JOIN directions d1 ON u1.direction_id = d1.id
@@ -356,6 +373,27 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
 app.post('/api/messages', authMiddleware, async (req, res) => {
   const { target_direction_id, target_user_id, message, is_request, item_description, quantity } = req.body;
   try {
+    let initialStatus = 'APROBADO_UNIDAD';
+    if (is_request) {
+      if (target_user_id) {
+        // Verificar el rol del usuario receptor específico
+        const targetUserRes = await db.query('SELECT role FROM users WHERE id = $1', [target_user_id]);
+        if (targetUserRes.rows.length > 0) {
+          const targetRole = targetUserRes.rows[0].role;
+          // Si el usuario receptor es de solo lectura, NO tiene permiso de dar salida; requiere supervisor directamente
+          if (targetRole === 'Usuario (Solo lectura)') {
+            initialStatus = 'PENDIENTE_SUPERVISOR_REQUERIDO';
+          } else {
+            initialStatus = 'PENDIENTE_UNIDAD';
+          }
+        } else {
+          initialStatus = 'PENDIENTE_UNIDAD';
+        }
+      } else {
+        initialStatus = 'PENDIENTE_UNIDAD';
+      }
+    }
+
     await db.query(
       `INSERT INTO messages (sender_id, target_direction_id, target_user_id, message, is_request, item_description, quantity, status) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -367,9 +405,10 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
         is_request || false, 
         item_description || null, 
         quantity || null, 
-        is_request ? 'PENDIENTE_UNIDAD' : 'APROBADO_UNIDAD'
+        initialStatus
       ]
     );
+    await logAudit(req.user.username, 'MENSAJE_CHAT', `Nuevo mensaje/solicitud enviada.`);
     res.json({ message: 'Mensaje enviado' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -378,12 +417,24 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
 
 app.post('/api/messages/:id/approve-unit', authMiddleware, async (req, res) => {
   try {
-    const msgRes = await db.query('SELECT * FROM messages WHERE id = $1', [req.params.id]);
+    const msgRes = await db.query(`
+      SELECT messages.*, u.role as target_user_role 
+      FROM messages 
+      LEFT JOIN users u ON messages.target_user_id = u.id 
+      WHERE messages.id = $1
+    `, [req.params.id]);
+
     if (msgRes.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
     const msg = msgRes.rows[0];
 
+    // Si el usuario asignado es de solo lectura, no puede dar visto bueno
+    if (msg.target_user_role === 'Usuario (Solo lectura)') {
+      return res.status(403).json({ error: 'El usuario receptor tiene rol de solo lectura y no puede autorizar inventario. Se requiere aprobación de Supervisor.' });
+    }
+
     const isAuthorized = req.user.role === 'Administrador' || 
                          req.user.role === 'Supervisor' || 
+                         req.user.role === 'Usuario (Con permisos)' ||
                          req.user.id === msg.target_user_id || 
                          (msg.target_direction_id && req.user.direction_id === msg.target_direction_id);
 
@@ -392,6 +443,7 @@ app.post('/api/messages/:id/approve-unit', authMiddleware, async (req, res) => {
     }
 
     await db.query("UPDATE messages SET status = 'APROBADO_UNIDAD' WHERE id = $1", [req.params.id]);
+    await logAudit(req.user.username, 'VISTO_BUENO_CHAT', `Se otorgó visto bueno a solicitud de chat ID ${req.params.id}.`);
     res.json({ message: 'Visto bueno otorgado.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -401,6 +453,7 @@ app.post('/api/messages/:id/approve-unit', authMiddleware, async (req, res) => {
 app.post('/api/messages/:id/approve-supervisor', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     await db.query("UPDATE messages SET status = 'APROBADO_SUPERVISOR' WHERE id = $1", [req.params.id]);
+    await logAudit(req.user.username, 'APROBAR_CHAT_SUPERVISOR', `Supervisor aprobó solicitud de chat ID ${req.params.id}.`);
     res.json({ message: 'Aprobado por Supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -423,7 +476,18 @@ app.post('/api/messages/:id/reject', authMiddleware, async (req, res) => {
     }
 
     await db.query("UPDATE messages SET status = 'RECHAZADO' WHERE id = $1", [req.params.id]);
+    await logAudit(req.user.username, 'RECHAZAR_CHAT', `Se rechazó solicitud en chat ID ${req.params.id}.`);
     res.json({ message: 'Solicitud rechazada.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ENDPOINT DE AUDITORÍA (SOLO ADMIN Y SUPERVISOR)
+app.get('/api/audit-logs', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM audit_logs ORDER BY date DESC LIMIT 100');
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

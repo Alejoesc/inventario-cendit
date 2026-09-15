@@ -75,6 +75,7 @@
             <li onclick="switchView('purchases', this)"><a href="#">🛒 Cotizaciones y Compras</a></li>
             <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades</a></li>
             <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Accesos</a></li>
+            <li onclick="switchView('audit', this)" id="menuAudit" style="display:none;"><a href="#">📋 Historial / Auditoría</a></li>
             <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Salir</a></li>
         </ul>
     </aside>
@@ -120,7 +121,7 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Utiliza el chat flotante en la esquina inferior derecha para comunicarte, elegir unidades y personal específico, solicitar apoyo de inventario y gestionar aprobaciones de jefaturas y supervisores.</p>
+                    <p>Utiliza el chat flotante en la esquina inferior derecha para comunicarte, elegir unidades y personal específico con verificación de permisos de salida de inventario y supervisión.</p>
                 </div>
             </div>
 
@@ -319,6 +320,21 @@
                     </div>
                 </div>
             </div>
+
+            <!-- VISTA 7: AUDITORÍA / HISTORIAL (SOLO ADMIN Y SUPERVISOR) -->
+            <div id="view-audit" class="view-section">
+                <div class="box">
+                    <h3>📋 Historial de Actividad del Sistema (Auditoría)</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Fecha y Hora</th><th>Usuario</th><th>Acción</th><th>Detalles</th></tr>
+                            </thead>
+                            <tbody id="auditTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -397,12 +413,16 @@
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
             document.getElementById('senderLockedInput').value = currentUser;
             document.getElementById('assignedUser').value = currentUser;
+
             if (currentRole === 'Administrador' || currentRole === 'Supervisor') {
                 document.getElementById('menuUsers').style.display = 'block';
+                document.getElementById('menuAudit').style.display = 'block';
                 document.getElementById('addItemBox').style.display = 'block';
                 document.getElementById('addDirBox').style.display = 'block';
                 document.getElementById('dirActionHeader').style.display = 'table-cell';
+                loadAuditLogs();
             }
+
             loadAllData();
             setInterval(loadChatMessages, 5000);
         }
@@ -415,6 +435,9 @@
             document.getElementById(`view-${viewName}`).classList.add('active');
             if(el) el.classList.add('active');
             document.getElementById('headerTitle').innerText = el ? el.innerText.trim() : 'Panel de Control';
+            if (viewName === 'audit' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
+                loadAuditLogs();
+            }
         }
 
         async function loadAllData() {
@@ -599,6 +622,33 @@
             }
         }
 
+        async function loadAuditLogs() {
+            if (currentRole !== 'Administrador' && currentRole !== 'Supervisor') return;
+            try {
+                const res = await fetch('/api/audit-logs', { headers: getHeaders() });
+                const logs = await res.json();
+                const tbody = document.getElementById('auditTable');
+                tbody.innerHTML = '';
+                if(logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay registros de auditoría.</td></tr>';
+                    return;
+                }
+                logs.forEach(l => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${l.id}</td>
+                            <td>${new Date(l.date).toLocaleString()}</td>
+                            <td><b>${l.username || 'Sistema'}</b></td>
+                            <td><span class="badge badge-yellow">${l.action}</span></td>
+                            <td>${l.details}</td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error("Error cargando auditoría:", err);
+            }
+        }
+
         // LÓGICA DEL CHAT FLOTANTE
         function toggleFloatingChat() {
             const popup = document.getElementById('floatingChatPopup');
@@ -645,6 +695,7 @@
                     let requestHtml = '';
                     if (m.is_request) {
                         let statusBadge = '<span class="badge badge-yellow">Pendiente Visto Bueno</span>';
+                        if (m.status === 'PENDIENTE_SUPERVISOR_REQUERIDO') statusBadge = '<span class="badge badge-red">Requiere Supervisor (Receptor sin permisos)</span>';
                         if (m.status === 'APROBADO_UNIDAD') statusBadge = '<span class="badge badge-green">Visto Bueno Otorgado</span>';
                         if (m.status === 'APROBADO_SUPERVISOR') statusBadge = '<span class="badge badge-green">Aprobado Supervisor</span>';
                         if (m.status === 'RECHAZADO') statusBadge = '<span class="badge badge-red">Rechazado</span>';
@@ -656,7 +707,7 @@
                         if (m.status !== 'APROBADO_SUPERVISOR' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
                             actionBtns += `<button class="btn-warning" onclick="approveMessageSupervisor(${m.id})" style="padding:3px 6px; font-size:0.7rem; margin-right:4px;">⚡ Sup. Aprobar</button>`;
                         }
-                        if (m.status === 'PENDIENTE_UNIDAD') {
+                        if (m.status === 'PENDIENTE_UNIDAD' || m.status === 'PENDIENTE_SUPERVISOR_REQUERIDO') {
                             actionBtns += `<button class="btn-danger" onclick="rejectMessage(${m.id})" style="padding:3px 6px; font-size:0.7rem;">❌</button>`;
                         }
 

@@ -90,6 +90,17 @@ async function initDB() {
     `);
     await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`);
 
+    // TABLA DE AUDITORÍA / HISTORIAL DE ACTIVIDAD
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id SERIAL PRIMARY KEY,
+        username TEXT,
+        action TEXT NOT NULL,
+        details TEXT,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     const dirCount = await pool.query('SELECT COUNT(*) FROM directions');
     if (parseInt(dirCount.rows[0].count) === 0) {
       const defaultDirs = [
