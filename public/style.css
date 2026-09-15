@@ -154,7 +154,7 @@ button:hover { background: var(--accent-hover); }
 .floating-chat-btn:hover { transform: scale(1.05); background: var(--accent-hover); }
 
 .floating-chat-popup {
-    position: fixed; bottom: 95px; right: 25px; width: 380px; height: 520px;
+    position: fixed; bottom: 95px; right: 25px; width: 400px; height: 550px;
     background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px;
     box-shadow: 0 20px 40px rgba(0,0,0,0.3); z-index: 10000; display: none; flex-direction: column; overflow: hidden;
 }
@@ -166,7 +166,7 @@ button:hover { background: var(--accent-hover); }
 .floating-chat-messages { flex: 1; padding: 12px; overflow-y: auto; background: var(--bg-app); display: flex; flex-direction: column; gap: 10px; }
 .floating-chat-footer { padding: 12px; background: var(--card-bg); border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px; }
 
-.chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 0.85rem; line-height: 1.4; position: relative; }
+.chat-bubble { max-width: 90%; padding: 10px 14px; border-radius: 12px; font-size: 0.85rem; line-height: 1.4; position: relative; }
 .chat-bubble.mine { align-self: flex-end; background: var(--accent); color: white; border-bottom-right-radius: 2px; }
 .chat-bubble.theirs { align-self: flex-start; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); border-bottom-left-radius: 2px; }
 .chat-bubble .meta { font-size: 0.7rem; opacity: 0.8; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 10px; }

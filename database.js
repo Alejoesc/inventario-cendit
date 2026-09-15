@@ -90,7 +90,6 @@ async function initDB() {
     `);
     await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`);
 
-    // TABLA DE AUDITORÍA / HISTORIAL DE ACTIVIDAD
     await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
