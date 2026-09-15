@@ -68,11 +68,19 @@ async function initDB() {
         item_description TEXT NOT NULL,
         quantity REAL NOT NULL,
         estimated_price NUMERIC(12, 2) DEFAULT 0.00,
+        estimated_price_bs NUMERIC(12, 2) DEFAULT 0.00,
+        quotation_ref TEXT,
+        existing_item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
         status TEXT DEFAULT 'PENDIENTE',
         supervisor_notes TEXT,
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    
+    // Asegurar compatibilidad de columnas en purchase_requests si ya existía
+    await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS estimated_price_bs NUMERIC(12, 2) DEFAULT 0.00;`);
+    await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS quotation_ref TEXT;`);
+    await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS existing_item_id INTEGER REFERENCES items(id) ON DELETE SET NULL;`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (

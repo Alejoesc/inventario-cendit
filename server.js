@@ -100,10 +100,10 @@ app.put('/api/users/:id', authMiddleware, supervisorOrAdminMiddleware, async (re
         [username, cedula, email || null, role, direction_id || null, req.params.id]
       );
     }
-    await logAudit(req.user.username, 'EDITAR_USUARIO', `Se actualizó la información del usuario ID ${req.params.id} (${username}).`);
+    await logAudit(req.user.username, 'EDITAR_USUARIO', `Se actualizó el usuario ID ${req.params.id} (${username}).`);
     res.json({ message: 'Usuario actualizado exitosamente' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar: el usuario, cédula o correo ya existen' });
+    res.status(500).json({ error: 'Error al actualizar usuario' });
   }
 });
 
@@ -324,10 +324,12 @@ app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
 app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT purchase_requests.*, users.username, users.cedula, directions.name as direction_name
+      SELECT purchase_requests.*, users.username, users.cedula, directions.name as direction_name,
+             items.description as existing_item_name
       FROM purchase_requests
       JOIN users ON purchase_requests.user_id = users.id
       LEFT JOIN directions ON purchase_requests.direction_id = directions.id
+      LEFT JOIN items ON purchase_requests.existing_item_id = items.id
     `);
     res.json(result.rows);
   } catch (err) {
@@ -337,13 +339,13 @@ app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
 
 app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
   if (req.user.role === 'Usuario (Solo lectura)') return res.status(403).json({ error: 'Solo lectura.' });
-  const { item_description, quantity, estimated_price } = req.body;
+  const { item_description, quantity, estimated_price, estimated_price_bs, quotation_ref, existing_item_id } = req.body;
   try {
     await db.query(
-      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')`,
-      [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0]
+      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, estimated_price_bs, quotation_ref, existing_item_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
+      [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0, estimated_price_bs || 0, quotation_ref || null, existing_item_id || null]
     );
-    await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de compra para: ${item_description} (Cant: ${quantity}).`);
+    await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de cotización para: ${item_description} (Cant: ${quantity}).`);
     res.json({ message: 'Solicitud de cotización enviada a compras.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -498,7 +500,7 @@ app.post('/api/messages/:id/process-purchase', authMiddleware, supervisorOrAdmin
 
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, 0, 'PENDIENTE')`,
+      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, estimated_price_bs, status) VALUES ($1, $2, $3, $4, 0, 0, 'PENDIENTE')`,
       [msg.user_id, msg.direction_id || 1, msg.item_description, msg.quantity]
     );
     await client.query("UPDATE messages SET status = 'COMPLETADO_COMPRA' WHERE id = $1", [req.params.id]);
