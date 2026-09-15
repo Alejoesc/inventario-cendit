@@ -1,4 +1,5 @@
 const express = require('express');
+const https = require('https');
 const db = require('./database');
 const app = express();
 
@@ -21,7 +22,7 @@ async function authMiddleware(req, res, next) {
 
 function supervisorOrAdminMiddleware(req, res, next) {
   if (!req.user || (req.user.role !== 'Administrador' && req.user.role !== 'Supervisor')) {
-    return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de Supervisor o Administrador.' });
+    return res.status(403).json({ error: 'Acceso denegado: Se requiere autorización final de Supervisor o Administrador.' });
   }
   next();
 }
@@ -40,6 +41,24 @@ async function logAudit(username, action, details) {
     console.error('Error registrando auditoría:', err.message);
   }
 }
+
+// ENDPOINT BCV EN VIVO
+app.get('/api/bcv', async (req, res) => {
+  https.get('https://rates.dolarvzla.com/bcv/current.json', (resp) => {
+    let data = '';
+    resp.on('data', (chunk) => { data += chunk; });
+    resp.on('end', () => {
+      try {
+        const parsed = JSON.parse(data);
+        res.json({ usd: parsed.current.usd, eur: parsed.current.eur, date: parsed.current.date });
+      } catch (e) {
+        res.json({ usd: 36.50, eur: 39.80, date: 'fallback' });
+      }
+    });
+  }).on('error', () => {
+    res.json({ usd: 36.50, eur: 39.80, date: 'fallback' });
+  });
+});
 
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
@@ -189,6 +208,24 @@ app.post('/api/items', authMiddleware, async (req, res) => {
   }
 });
 
+// EDITAR ARTÍCULO (Permitido a encargados / Usuario con permisos, administradores y supervisores)
+app.put('/api/items/:id', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') {
+    return res.status(403).json({ error: 'Solo lectura.' });
+  }
+  const { description, national_asset_number, unit_type, quantity, price, project_name, assigned_username } = req.body;
+  try {
+    await db.query(
+      `UPDATE items SET description = $1, national_asset_number = $2, unit_type = $3, quantity = $4, price = $5, project_name = $6, assigned_username = $7 WHERE id = $8`,
+      [description, national_asset_number || null, unit_type || 'unidades', quantity, price || 0, project_name || 'General', assigned_username || req.user.username, req.params.id]
+    );
+    await logAudit(req.user.username, 'EDITAR_MATERIAL', `Se editó el artículo ID ${req.params.id} (${description}).`);
+    res.json({ message: 'Artículo actualizado exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/loans', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
@@ -245,7 +282,7 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
       [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable]
     );
     await logAudit(req.user.username, 'SOLICITUD_PRÉSTAMO', `Solicitud de préstamo para artículo ID ${item_id} (Cant: ${quantity}).`);
-    res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación.' });
+    res.json({ message: 'Solicitud de préstamo registrada. Pendiente de autorización del supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -273,8 +310,8 @@ app.post('/api/loans/:id/approve', authMiddleware, supervisorOrAdminMiddleware, 
     await client.query('COMMIT');
     client.release();
 
-    await logAudit(req.user.username, 'APROBAR_PRÉSTAMO', `Se aprobó el préstamo ID ${req.params.id}.`);
-    res.json({ message: 'Préstamo aprobado y stock descontado' });
+    await logAudit(req.user.username, 'APROBAR_PRÉSTAMO', `Autorización final otorgada para préstamo ID ${req.params.id}.`);
+    res.json({ message: 'Préstamo autorizado y stock descontado' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
     client.release();
@@ -346,7 +383,7 @@ app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
       [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0, estimated_price_bs || 0, quotation_ref || null, existing_item_id || null]
     );
     await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de cotización para: ${item_description} (Cant: ${quantity}).`);
-    res.json({ message: 'Solicitud de cotización enviada a compras.' });
+    res.json({ message: 'Solicitud de cotización enviada a supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -355,8 +392,8 @@ app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
 app.post('/api/purchase-requests/:id/approve', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     await db.query(`UPDATE purchase_requests SET status = 'APROBADO' WHERE id = $1`, [req.params.id]);
-    await logAudit(req.user.username, 'APROBAR_COMPRA', `Se aprobó la solicitud de compra ID ${req.params.id}.`);
-    res.json({ message: 'Solicitud de compra aprobada.' });
+    await logAudit(req.user.username, 'APROBAR_COMPRA', `Supervisor autorizó la solicitud de compra ID ${req.params.id}.`);
+    res.json({ message: 'Solicitud de compra autorizada.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -426,8 +463,8 @@ app.post('/api/messages/:id/approve', authMiddleware, supervisorOrAdminMiddlewar
     const msgRes = await db.query('SELECT * FROM messages WHERE id = $1', [req.params.id]);
     if (msgRes.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
     await db.query("UPDATE messages SET status = 'APROBADO' WHERE id = $1", [req.params.id]);
-    await logAudit(req.user.username, 'APROBAR_CHAT_SUPERVISOR', `Supervisor aprobó solicitud de chat ID ${req.params.id}.`);
-    res.json({ message: 'Solicitud aprobada por supervisor.' });
+    await logAudit(req.user.username, 'APROBAR_CHAT_SUPERVISOR', `Supervisor autorizó solicitud de chat ID ${req.params.id}.`);
+    res.json({ message: 'Solicitud autorizada por supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -479,7 +516,7 @@ app.post('/api/messages/:id/process-loan', authMiddleware, supervisorOrAdminMidd
     await client.query('COMMIT');
     client.release();
 
-    await logAudit(req.user.username, 'PRÉSTAMO_DESDE_CHAT', `Se prestó ${msg.quantity} de ${item.description} a ${msg.sender_name}.`);
+    await logAudit(req.user.username, 'PRÉSTAMO_DESDE_CHAT', `Se autorizó y prestó ${msg.quantity} de ${item.description} a ${msg.sender_name}.`);
     res.json({ message: 'Préstamo procesado con éxito.' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
@@ -507,7 +544,7 @@ app.post('/api/messages/:id/process-purchase', authMiddleware, supervisorOrAdmin
     await client.query('COMMIT');
     client.release();
 
-    await logAudit(req.user.username, 'COMPRA_DESDE_CHAT', `Se generó solicitud de compra para: ${msg.item_description}.`);
+    await logAudit(req.user.username, 'COMPRA_DESDE_CHAT', `Se autorizó envío a compras para: ${msg.item_description}.`);
     res.json({ message: 'Enviado a cotización de compras.' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}

@@ -1,3 +1,1311 @@
-git add .
-git commit -m "Asignacion persona/unidad, cotizacion de material existente, archivo adjunto y montos en dolares y bolivares"
-git push
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario CENDIT — Sistema Inteligente</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- MODAL DE PLANILLA OFICIAL PARA FIRMAS -->
+    <div id="reportModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; padding:15px;">
+        <div style="background:var(--card-bg); color:var(--text-main); width:100%; max-width:750px; padding:30px; border-radius:12px; max-height:92vh; overflow-y:auto; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid var(--border-color);">
+            <div id="reportContent"></div>
+            <div style="margin-top:25px; display:flex; gap:12px; justify-content:flex-end;">
+                <button onclick="window.print()" class="btn-info">🖨️ Imprimir / Guardar Acta</button>
+                <button onclick="closeReportModal()" class="btn-danger">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDITAR ARTÍCULO -->
+    <div id="editItemModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; padding:15px;">
+        <div style="background:var(--card-bg); color:var(--text-main); width:100%; max-width:500px; padding:30px; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid var(--border-color);">
+            <h3 style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:10px;">Editar Artículo / Stock</h3>
+            <input type="hidden" id="editItemId">
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Descripción:</label>
+                <input type="text" id="editItemDesc">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">N° Bien Nacional:</label>
+                <input type="text" id="editItemAsset">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Tipo de Medida:</label>
+                <select id="editItemUnitType">
+                    <option value="unidades">Unidades / Piezas</option>
+                    <option value="metros">Metros</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Cantidad / Metros:</label>
+                <input type="number" id="editItemQty" step="any">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Precio Unitario ($):</label>
+                <input type="number" id="editItemPrice" step="any">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Proyecto:</label>
+                <input type="text" id="editItemProject">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Asignado A (Persona o Unidad):</label>
+                <input type="text" id="editItemAssigned">
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="updateItem()" class="btn-info">Guardar Cambios</button>
+                <button onclick="closeEditItemModal()" class="btn-danger">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE EDITAR USUARIO -->
+    <div id="editUserModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; padding:15px;">
+        <div style="background:var(--card-bg); color:var(--text-main); width:100%; max-width:500px; padding:30px; border-radius:12px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); border: 1px solid var(--border-color);">
+            <h3 style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:10px;">Editar Usuario</h3>
+            <input type="hidden" id="editUserId">
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Nombre y Apellido:</label>
+                <input type="text" id="editUsername">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Cédula:</label>
+                <input type="text" id="editCedula">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Correo electrónico:</label>
+                <input type="email" id="editEmail">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Nueva Contraseña (opcional):</label>
+                <input type="password" id="editPassword" placeholder="Nueva contraseña">
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Unidad / Dirección:</label>
+                <select id="editUserDirSelect"></select>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Rol:</label>
+                <select id="editRole">
+                    <option value="Usuario (Con permisos)">Usuario (Con permisos - Encargado)</option>
+                    <option value="Usuario (Solo lectura)">Usuario (Solo lectura)</option>
+                    <option value="Supervisor">Supervisor (Autorización final)</option>
+                    <option value="Administrador">Administrador</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="updateUser()" class="btn-info">Guardar Cambios</button>
+                <button onclick="closeEditUserModal()" class="btn-danger">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE LOGIN -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h2>CENDIT INVENTORY</h2>
+            <p>Control Inteligente de Fotónica y Redes</p>
+            <input type="text" id="loginUser" placeholder="Usuario o Cédula (ej: admin o V-00000000)">
+            <input type="password" id="loginPass" placeholder="Contraseña">
+            <button onclick="handleLogin()">Iniciar Sesión</button>
+            <div id="loginError"></div>
+        </div>
+    </div>
+
+    <!-- CHAT FLOTANTE A MANO DERECHA INFERIOR -->
+    <div class="floating-chat-btn" onclick="toggleFloatingChat()" title="Chat y Solicitudes de Apoyo">💬</div>
+    
+    <div class="floating-chat-popup" id="floatingChatPopup">
+        <div class="floating-chat-header">
+            <span>💬 Chat y Solicitud de Apoyo</span>
+            <button class="floating-chat-close" onclick="toggleFloatingChat()">✕</button>
+        </div>
+        <div class="floating-chat-messages" id="floatingChatMessages"></div>
+        <div class="floating-chat-footer">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                <select id="chatTargetDir" onchange="filterChatUsers(this.value)" style="font-size:0.8rem; padding:6px;">
+                    <option value="">Cualquier Unidad</option>
+                </select>
+                <select id="chatTargetUser" style="font-size:0.8rem; padding:6px;">
+                    <option value="">Personal Específico</option>
+                </select>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; font-size:0.8rem;">
+                <input type="checkbox" id="chatIsRequest" onchange="toggleChatRequestInputs()" style="width:16px; height:16px;">
+                <label for="chatIsRequest" style="cursor:pointer; font-weight:500;">Solicitar Apoyo de Material</label>
+            </div>
+            <div id="chatRequestInputs" style="display:none; grid-template-columns: 2fr 1fr; gap:6px;">
+                <input type="text" id="chatItemDesc" placeholder="Descripción del equipo, fibra o cable" style="font-size:0.8rem; padding:6px;">
+                <input type="number" id="chatItemQty" placeholder="Cant. / Metros" style="font-size:0.8rem; padding:6px;" step="any">
+            </div>
+            <div style="display:flex; gap:6px;">
+                <input type="text" id="chatMessageInput" placeholder="Escribe un mensaje..." style="font-size:0.85rem; padding:8px;" onkeypress="if(event.key === 'Enter') sendFloatingChatMessage()">
+                <button onclick="sendFloatingChatMessage()" style="padding:8px 12px; font-size:0.85rem;">Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside>
+        <div class="brand-header">CENDIT C.I.</div>
+        <ul class="sidebar-menu">
+            <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel</a></li>
+            <li onclick="switchView('inventory', this)"><a href="#">📦 Stock por Unidad</a></li>
+            <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos</a></li>
+            <li onclick="switchView('purchases', this)"><a href="#">🛒 Cotizaciones y Compras</a></li>
+            <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades</a></li>
+            <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Accesos</a></li>
+            <li onclick="switchView('audit', this)" id="menuAudit" style="display:none;"><a href="#">📋 Historial / Auditoría</a></li>
+            <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Salir</a></li>
+        </ul>
+    </aside>
+
+    <!-- WRAPPER -->
+    <div class="wrapper">
+        <header>
+            <div class="header-title" id="headerTitle">Panel de Control General</div>
+            <div class="header-right" style="gap:15px;">
+                <!-- TASA BCV WIDGET -->
+                <div id="bcvTicker" style="font-size:0.78rem; font-weight:600; background:var(--bg-app); padding:6px 12px; border-radius:8px; border:1px solid var(--border-color); display:flex; gap:10px; align-items:center;">
+                    <span>🇻🇪 <b>BCV:</b></span>
+                    <span>USD: <span id="bcvUsdRate" style="color:var(--accent);">--</span> Bs.</span>
+                    <span>EUR: <span id="bcvEurRate" style="color:#3b82f6;">--</span> Bs.</span>
+                </div>
+                <div class="notification-container" onclick="toggleNotifications()">
+                    <div class="bell-icon">🔔 <span class="notification-badge" id="notifBadge">0</span></div>
+                    <div class="notification-dropdown" id="notifDropdown">
+                        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Alertas del Sistema</div>
+                        <div id="notifList" style="font-size: 0.85rem;">No hay alertas recientes.</div>
+                    </div>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙 Oscuro</button>
+                <div class="user-badge" id="currentUserDisplay">Usuario: admin</div>
+            </div>
+        </header>
+
+        <main>
+            <!-- VISTA 1: DASHBOARD -->
+            <div id="view-dashboard" class="view-section active">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <p class="metric-number" id="statUsers">0</p>
+                        <p class="metric-label">Usuarios del Sistema</p>
+                    </div>
+                    <div class="metric-card">
+                        <p class="metric-number" id="statDirs">0</p>
+                        <p class="metric-label">Direcciones / Unidades</p>
+                    </div>
+                    <div class="metric-card">
+                        <p class="metric-number" id="statItems">0</p>
+                        <p class="metric-label">Artículos Registrados</p>
+                    </div>
+                    <div class="metric-card">
+                        <p class="metric-number" id="statLoans">0</p>
+                        <p class="metric-label">Préstamos Activos</p>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Panel de Monitoreo Inteligente CENDIT</h3>
+                    <p>Los encargados de inventario (Usuario con permisos) pueden registrar y editar el stock, mientras que la autorización final de préstamos, chats y compras recae en el Supervisor o Administrador. Tasas oficiales del BCV integradas en tiempo real.</p>
+                </div>
+            </div>
+
+            <!-- VISTA 2: INVENTARIO -->
+            <div id="view-inventory" class="view-section">
+                <div class="box" id="addItemBox" style="display:none;">
+                    <h3>Registrar Material / Equipo</h3>
+                    <div class="form-row">
+                        <select id="itemDirSelect"></select>
+                        <input type="text" id="desc" placeholder="Descripción (Ej: Cable UTP, Router Cisco)">
+                        <input type="text" id="assetNum" placeholder="N° Bien Nacional (Si aplica)">
+                    </div>
+                    <div class="form-row">
+                        <select id="unitTypeSelect">
+                            <option value="unidades">Unidades / Piezas</option>
+                            <option value="metros">Metros (Cable / Fibra)</option>
+                        </select>
+                        <input type="number" id="qty" placeholder="Cantidad o Metros" step="any">
+                        <input type="number" id="itemPrice" placeholder="Precio Unitario ($)" step="any">
+                    </div>
+                    <div class="form-row">
+                        <input type="text" id="projectName" placeholder="Proyecto a cargo (Ej: Redes CENDIT 2026)">
+                        <input type="text" id="assignedUser" placeholder="Asignado a (Persona o Unidad)">
+                        <button onclick="addItem()">Registrar Artículo</button>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Inventario por Tipo (Equipos, Materiales y Metros)</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Unidad</th>
+                                    <th>Descripción / Proyecto</th>
+                                    <th>Bien Nacional</th>
+                                    <th>Asignado A / Unidad</th>
+                                    <th>Precio ($)</th>
+                                    <th>Stock / Medida</th>
+                                    <th>Estado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 3: PRÉSTAMOS -->
+            <div id="view-loans" class="view-section">
+                <div class="box">
+                    <h3>Registrar Solicitud de Préstamo (Requiere Autorización del Supervisor)</h3>
+                    <div class="form-row">
+                        <select id="loanItemSelect"></select>
+                        <select id="targetDirSelect"></select>
+                        
+                        <div>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Emisor:</label>
+                            <input type="text" id="senderLockedInput" readonly>
+                        </div>
+                        
+                        <div>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Receptor Autorizado:</label>
+                            <div class="custom-select-wrapper">
+                                <input type="text" id="receiverRespInput" placeholder="Escriba nombre o cédula..." autocomplete="off" oninput="filterReceiverDropdown(this.value)" onfocus="openReceiverDropdown()">
+                                <div id="receiverDropdownList" class="custom-dropdown-list" style="display:none;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <input type="number" id="loanQty" placeholder="Cantidad / Metros" step="any">
+                        <div>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Fecha estimada de Regreso:</label>
+                            <input type="date" id="returnDate">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">¿El artículo volverá al stock?</label>
+                            <select id="isReturnableSelect">
+                                <option value="SI">Sí, préstamo temporal</option>
+                                <option value="NO">No volverá / Definitivo</option>
+                            </select>
+                        </div>
+                        <button onclick="createLoan()" style="align-self: flex-end;">Enviar Solicitud</button>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Control de Préstamos y Reportes</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Artículo</th>
+                                    <th>Reporte Emisor ➔ Destino</th>
+                                    <th>Cant.</th>
+                                    <th>Fecha / Tipo</th>
+                                    <th>Estado</th>
+                                    <th>Acción / Planilla</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loansTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 4: COTIZACIONES Y COMPRAS -->
+            <div id="view-purchases" class="view-section">
+                <div class="box">
+                    <h3>Solicitud de Cotización de Compra (Con Conversión BCV y Adjunto)</h3>
+                    
+                    <div style="margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" id="isExistingItemCheck" onchange="toggleExistingItemPurchase(this)" style="width:18px; height:18px;">
+                        <label for="isExistingItemCheck" style="font-weight:600; cursor:pointer;">Cotizar de un material existente en stock (Reabastecimiento)</label>
+                    </div>
+
+                    <div class="form-row" id="existingItemRow" style="display:none; margin-bottom:12px;">
+                        <select id="purchaseExistingItemSelect" onchange="fillPurchaseFromExistingStock(this.value)">
+                            <option value="">Seleccione material existente...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <input type="text" id="purchaseDesc" placeholder="Descripción del material a cotizar">
+                        <input type="number" id="purchaseQty" placeholder="Cantidad / Metros requeridos" step="any">
+                        <input type="text" id="purchaseQuotationRef" placeholder="Adjuntar / Referencia de Cotización (N° u observaciones)">
+                    </div>
+
+                    <div class="form-row">
+                        <input type="number" id="purchasePriceUSD" placeholder="Precio Estimado en Dólares ($)" step="any" oninput="convertUsdToBs(this.value)">
+                        <input type="number" id="purchasePriceBs" placeholder="Precio Estimado en Bolívares (Bs.)" step="any">
+                        <button onclick="createPurchaseRequest()">Enviar a Supervisor</button>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Bandeja de Solicitudes y Devoluciones</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Solicitante</th>
+                                    <th>Material / Ref. Cotización</th>
+                                    <th>Cant.</th>
+                                    <th>Monto Estimado ($ / Bs.)</th>
+                                    <th>Estado / Observaciones</th>
+                                    <th>Acciones (Supervisor)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="purchaseTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 5: DIRECCIONES -->
+            <div id="view-directions" class="view-section">
+                <div class="box" id="addDirBox" style="display:none;">
+                    <h3>Gestión de Direcciones y Unidades CENDIT</h3>
+                    <div class="form-row">
+                        <input type="text" id="newDirName" placeholder="Nombre de la nueva unidad">
+                        <button onclick="addDirection()">Crear Dirección</button>
+                    </div>
+                </div>
+                <div class="box">
+                    <h3>Unidades Organizacionales Registradas</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Nombre de la Unidad</th><th id="dirActionHeader" style="display:none;">Acciones</th></tr>
+                            </thead>
+                            <tbody id="directionsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 6: USUARIOS -->
+            <div id="view-users" class="view-section">
+                <div class="box">
+                    <h3>Crear Nuevo Usuario (Encargados de Inventario, Lectura, Supervisor, Admin)</h3>
+                    <div class="form-row">
+                        <input type="text" id="newUsername" placeholder="Nombre y Apellido">
+                        <input type="text" id="newCedula" placeholder="Cédula (Ej: V-26123456)">
+                        <input type="email" id="newEmail" placeholder="Correo electrónico">
+                    </div>
+                    <div class="form-row">
+                        <input type="password" id="newPassword" placeholder="Contraseña">
+                        <select id="newUserDirSelect">
+                            <option value="">Seleccione Unidad / Dirección...</option>
+                        </select>
+                        <select id="newRole">
+                            <option value="Usuario (Con permisos)">Usuario (Con permisos - Encargado)</option>
+                            <option value="Usuario (Solo lectura)">Usuario (Solo lectura)</option>
+                            <option value="Supervisor">Supervisor (Autorización final)</option>
+                            <option value="Administrador">Administrador</option>
+                        </select>
+                        <button onclick="createUser()">Registrar Usuario</button>
+                    </div>
+                </div>
+                <div class="box">
+                    <h3>Usuarios Autorizados</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Correo</th><th>Unidad</th><th>Rol</th><th>Acciones</th></tr>
+                            </thead>
+                            <tbody id="usersTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 7: AUDITORÍA / HISTORIAL (SOLO ADMIN Y SUPERVISOR) -->
+            <div id="view-audit" class="view-section">
+                <div class="box">
+                    <h3>📋 Historial de Actividad del Sistema (Auditoría)</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Fecha y Hora</th><th>Usuario</th><th>Acción</th><th>Detalles</th></tr>
+                            </thead>
+                            <tbody id="auditTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentUser = localStorage.getItem('cendit_user') || null;
+        let currentRole = localStorage.getItem('cendit_role') || null;
+        let currentTheme = localStorage.getItem('cendit_theme') || 'light';
+        let allLoansCache = [];
+        let allPurchasesCache = [];
+        let allUsersCache = [];
+        let allDirectionsCache = [];
+        let allItemsCache = [];
+        let loggedInUserData = null;
+        let bcvRates = { usd: 36.5, eur: 39.8 };
+
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateThemeButtonText();
+
+        if (currentUser) {
+            document.getElementById('loginOverlay').style.display = 'none';
+            initSession();
+        }
+
+        async function fetchBcvRates() {
+            try {
+                const res = await fetch('/api/bcv');
+                const data = await res.json();
+                if(data.usd) {
+                    bcvRates = data;
+                    document.getElementById('bcvUsdRate').innerText = parseFloat(data.usd).toFixed(2);
+                    document.getElementById('bcvEurRate').innerText = parseFloat(data.eur).toFixed(2);
+                }
+            } catch(e) {
+                console.error("Error obteniendo tasa BCV");
+            }
+        }
+
+        function convertUsdToBs(usdVal) {
+            const usd = parseFloat(usdVal) || 0;
+            const bs = usd * bcvRates.usd;
+            document.getElementById('purchasePriceBs').value = bs.toFixed(2);
+        }
+
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('cendit_theme', currentTheme);
+            updateThemeButtonText();
+        }
+
+        function updateThemeButtonText() {
+            document.getElementById('themeBtn').innerText = currentTheme === 'light' ? '🌙 Oscuro' : '☀️ Claro';
+        }
+
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notifDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function handleLogin() {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value.trim();
+            const errorEl = document.getElementById('loginError');
+            errorEl.innerText = '';
+
+            if (!user || !pass) {
+                errorEl.innerText = 'Por favor complete ambos campos.';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    localStorage.setItem('cendit_user', data.user.username);
+                    localStorage.setItem('cendit_role', data.user.role);
+                    currentUser = data.user.username;
+                    currentRole = data.user.role;
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    initSession();
+                } else {
+                    errorEl.innerText = data.error || 'Credenciales inválidas';
+                }
+            } catch (err) {
+                errorEl.innerText = 'Error de conexión con el servidor.';
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        async function initSession() {
+            try {
+                const userRes = await fetch('/api/users', { headers: getHeaders() });
+                const users = await userRes.json();
+                loggedInUserData = users.find(u => u.username === currentUser || u.cedula === currentUser);
+            } catch(e) {}
+
+            document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
+            document.getElementById('senderLockedInput').value = currentUser;
+            document.getElementById('assignedUser').value = currentUser;
+
+            if (currentRole === 'Administrador' || currentRole === 'Supervisor') {
+                document.getElementById('menuUsers').style.display = 'block';
+                document.getElementById('menuAudit').style.display = 'block';
+                document.getElementById('dirActionHeader').style.display = 'table-cell';
+                loadAuditLogs();
+            }
+
+            if (currentRole !== 'Usuario (Solo lectura)') {
+                document.getElementById('addItemBox').style.display = 'block';
+                document.getElementById('addDirBox').style.display = 'block';
+            }
+
+            await fetchBcvRates();
+            loadAllData();
+            setInterval(loadChatMessages, 5000);
+        }
+
+        const getHeaders = () => ({ 'Content-Type': 'application/json', 'x-user': currentUser });
+
+        function switchView(viewName, el) {
+            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.sidebar-menu li').forEach(l => l.classList.remove('active'));
+            document.getElementById(`view-${viewName}`).classList.add('active');
+            if(el) el.classList.add('active');
+            document.getElementById('headerTitle').innerText = el ? el.innerText.trim() : 'Panel de Control';
+            if (viewName === 'audit' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
+                loadAuditLogs();
+            }
+        }
+
+        async function loadAllData() {
+            try {
+                const [dirRes, itemRes, loanRes, userRes, purRes] = await Promise.all([
+                    fetch('/api/directions', { headers: getHeaders() }),
+                    fetch('/api/items', { headers: getHeaders() }),
+                    fetch('/api/loans', { headers: getHeaders() }),
+                    fetch('/api/users', { headers: getHeaders() }),
+                    fetch('/api/purchase-requests', { headers: getHeaders() })
+                ]);
+
+                allDirectionsCache = await dirRes.json();
+                allItemsCache = await itemRes.json();
+                allLoansCache = await loanRes.json();
+                allUsersCache = await userRes.json();
+                allPurchasesCache = await purRes.json();
+
+                if (!loggedInUserData) {
+                    loggedInUserData = allUsersCache.find(u => u.username === currentUser);
+                }
+
+                document.getElementById('statUsers').innerText = allUsersCache.length;
+                document.getElementById('statDirs').innerText = allDirectionsCache.length;
+                document.getElementById('statItems').innerText = allItemsCache.length;
+                document.getElementById('statLoans').innerText = allLoansCache.filter(l => l.status === 'ACTIVO').length;
+
+                const itemDir = document.getElementById('itemDirSelect');
+                const targetDir = document.getElementById('targetDirSelect');
+                const newUserDir = document.getElementById('newUserDirSelect');
+                const chatTargetDir = document.getElementById('chatTargetDir');
+                const purchaseExistingItemSelect = document.getElementById('purchaseExistingItemSelect');
+                
+                itemDir.innerHTML = '<option value="">Seleccione Dirección Propietaria</option>';
+                targetDir.innerHTML = '<option value="">Seleccione Dirección Destino</option>';
+                newUserDir.innerHTML = '<option value="">Seleccione Unidad / Dirección...</option>';
+                chatTargetDir.innerHTML = '<option value="">Cualquier Unidad</option>';
+                purchaseExistingItemSelect.innerHTML = '<option value="">Seleccione material existente...</option>';
+
+                allDirectionsCache.forEach(d => {
+                    itemDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    targetDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    newUserDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    chatTargetDir.innerHTML += `<option value="${d.id}">Unidad: ${d.name}</option>`;
+                });
+
+                allItemsCache.forEach(i => {
+                    purchaseExistingItemSelect.innerHTML += `<option value="${i.id}">${i.description} [Unidad: ${i.direction_name}] (Stock: ${i.quantity})</option>`;
+                });
+
+                filterChatUsers('');
+                renderReceiverDropdown(allUsersCache);
+                loadChatMessages();
+
+                const lowStockItems = allItemsCache.filter(i => i.alerta_reposicion);
+                const pendingPurchases = allPurchasesCache.filter(p => p.status === 'PENDIENTE');
+                const badge = document.getElementById('notifBadge');
+                const notifList = document.getElementById('notifList');
+                
+                let alertCount = lowStockItems.length + pendingPurchases.length;
+                if (alertCount > 0) {
+                    badge.innerText = alertCount;
+                    badge.style.display = 'inline-block';
+                    notifList.innerHTML = '';
+                    lowStockItems.forEach(i => {
+                        notifList.innerHTML += `<div class="notification-item">⚠️ Stock bajo: <b>${i.description}</b> en [${i.direction_name}].</div>`;
+                    });
+                    pendingPurchases.forEach(p => {
+                        notifList.innerHTML += `<div class="notification-item">🛒 Solicitud compra pendiente de: <b>${p.username}</b> (${p.item_description})</div>`;
+                    });
+                } else {
+                    badge.style.display = 'none';
+                    notifList.innerHTML = '<div class="notification-item">No hay alertas recientes. Todo en orden.</div>';
+                }
+
+                const dirTable = document.getElementById('directionsTable');
+                dirTable.innerHTML = '';
+                allDirectionsCache.forEach(d => {
+                    let actionTd = (currentRole === 'Administrador' || currentRole === 'Supervisor') ? `<td><button class="btn-danger" onclick="deleteDirection(${d.id})">Eliminar</button></td>` : '';
+                    dirTable.innerHTML += `<tr><td>${d.id}</td><td>${d.name}</td>${actionTd}</tr>`;
+                });
+
+                const invTable = document.getElementById('inventoryTable');
+                invTable.innerHTML = '';
+                allItemsCache.forEach(i => {
+                    const unitText = i.unit_type === 'metros' ? `${i.quantity} Metros (m)` : `${i.quantity} Unidades (u)`;
+                    const assetInfo = i.national_asset_number ? `Bien: ${i.national_asset_number}` : 'Sin Bien Nacional';
+                    
+                    let editBtn = '';
+                    if (currentRole !== 'Usuario (Solo lectura)') {
+                        editBtn = `<button class="btn-warning" onclick="openEditItemModal(${i.id}, '${i.description.replace(/'/g, "\\'")}', '${i.national_asset_number || ''}', '${i.unit_type}', ${i.quantity}, ${i.price || 0}, '${(i.project_name || 'General').replace(/'/g, "\\'")}', '${(i.assigned_username || '').replace(/'/g, "\\'")}')" style="padding:4px 8px; font-size:0.75rem;">Editar</button>`;
+                    }
+
+                    invTable.innerHTML += `
+                        <tr class="${i.alerta_reposicion ? 'alert-tr' : ''}">
+                            <td>${i.id}</td>
+                            <td>${i.direction_name || 'N/A'}</td>
+                            <td><b>${i.description}</b><br><small style="color:var(--text-secondary);">Proyecto: ${i.project_name || 'General'}</small></td>
+                            <td>${assetInfo}</td>
+                            <td>🏢 / 👤 ${i.assigned_username || 'N/A'}</td>
+                            <td>$${parseFloat(i.price || 0).toFixed(2)}</td>
+                            <td><b>${unitText}</b></td>
+                            <td>${i.alerta_reposicion ? '<span class="badge badge-red">⚠️ REPOSICIÓN</span>' : '<span class="badge badge-green">Óptimo</span>'}</td>
+                            <td>${editBtn}</td>
+                        </tr>
+                    `;
+                });
+
+                const loanItemSelect = document.getElementById('loanItemSelect');
+                loanItemSelect.innerHTML = '<option value="">Seleccione artículo de tu unidad</option>';
+                
+                const userDirId = loggedInUserData ? loggedInUserData.direction_id : null;
+                const eligibleItems = (currentRole === 'Administrador' || currentRole === 'Supervisor') 
+                    ? allItemsCache 
+                    : allItemsCache.filter(i => i.direction_id === userDirId);
+
+                eligibleItems.forEach(i => {
+                    if(i.quantity > 0) {
+                        const measure = i.unit_type === 'metros' ? 'm' : 'u';
+                        loanItemSelect.innerHTML += `<option value="${i.id}">${i.description} [${i.direction_name}] (Disp: ${i.quantity} ${measure})</option>`;
+                    }
+                });
+
+                const loansTable = document.getElementById('loansTable');
+                loansTable.innerHTML = '';
+                allLoansCache.forEach(l => {
+                    let statusBadge = '<span class="badge badge-yellow">PENDIENTE AUTORIZACIÓN</span>';
+                    if (l.status === 'ACTIVO') statusBadge = '<span class="badge badge-red">ACTIVO</span>';
+                    if (l.status === 'DEVUELTO') statusBadge = '<span class="badge badge-green">DEVUELTO</span>';
+                    if (l.status === 'RECHAZADO') statusBadge = '<span class="badge badge-red">RECHAZADO</span>';
+
+                    let actionButtons = '';
+                    if (l.status === 'PENDIENTE' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
+                        actionButtons = `
+                            <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px;">Autorizar (Supervisor)</button>
+                            <button class="btn-danger" onclick="rejectLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Rechazar</button>
+                        `;
+                    } else if (l.status === 'ACTIVO') {
+                        actionButtons = `
+                            <button class="btn-warning" onclick="returnLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px; display:block; width:100%;">Cerrar</button>
+                            <button class="btn-info" onclick="openReportModal(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; display:block; width:100%;">📄 Planilla</button>
+                        `;
+                    } else if (l.status === 'DEVUELTO') {
+                        actionButtons = `<button class="btn-info" onclick="openReportModal(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">📄 Planilla</button>`;
+                    } else {
+                        actionButtons = 'Finalizado';
+                    }
+
+                    loansTable.innerHTML += `
+                        <tr>
+                            <td>${l.id}</td>
+                            <td><b>${l.item_name}</b></td>
+                            <td><b>Emisor:</b> ${l.sender_responsible} ➔ <b>Receptor:</b> ${l.receiver_responsible}</td>
+                            <td><b>${l.quantity}</b></td>
+                            <td>${l.return_date}</td>
+                            <td>${statusBadge}</td>
+                            <td>${actionButtons}</td>
+                        </tr>
+                    `;
+                });
+
+                const purchaseTable = document.getElementById('purchaseTable');
+                purchaseTable.innerHTML = '';
+                allPurchasesCache.forEach(p => {
+                    let pBadge = '<span class="badge badge-yellow">PENDIENTE AUTORIZACIÓN</span>';
+                    if (p.status === 'APROBADO') pBadge = '<span class="badge badge-green">APROBADO</span>';
+                    if (p.status === 'DEVUELTO') pBadge = '<span class="badge badge-red">DEVUELTO</span>';
+
+                    let pActions = '';
+                    if ((currentRole === 'Administrador' || currentRole === 'Supervisor') && p.status === 'PENDIENTE') {
+                        pActions = `
+                            <button class="btn-info" onclick="approvePurchase(${p.id})" style="padding:4px 8px; font-size:0.75rem;">Autorizar</button>
+                            <button class="btn-warning" onclick="returnPurchase(${p.id})" style="padding:4px 8px; font-size:0.75rem;">Devolver</button>
+                        `;
+                    } else {
+                        pActions = 'N/A';
+                    }
+
+                    let refInfo = p.quotation_ref ? `<br><small style="color:var(--accent);">Ref/Adjunto: ${p.quotation_ref}</small>` : '';
+
+                    purchaseTable.innerHTML += `
+                        <tr>
+                            <td>${p.id}</td>
+                            <td><b>${p.username}</b><br><small>${p.direction_name || ''}</small></td>
+                            <td><b>${p.item_description}</b> ${refInfo} ${p.existing_item_name ? '<br><small style="color:#3b82f6;">(Material Existente)</small>' : ''}</td>
+                            <td><b>${p.quantity}</b></td>
+                            <td>$${parseFloat(p.estimated_price || 0).toFixed(2)}<br><small style="color:var(--text-secondary);">Bs. ${parseFloat(p.estimated_price_bs || 0).toFixed(2)}</small></td>
+                            <td>${pBadge}<br><small style="color:var(--text-secondary);">${p.supervisor_notes ? 'Nota: ' + p.supervisor_notes : ''}</small></td>
+                            <td>${pActions}</td>
+                        </tr>
+                    `;
+                });
+
+                const usersTable = document.getElementById('usersTable');
+                usersTable.innerHTML = '';
+                allUsersCache.forEach(u => {
+                    let actionBtns = '';
+                    if (currentRole === 'Administrador' || currentRole === 'Supervisor') {
+                        actionBtns += `<button class="btn-warning" onclick="openEditUserModal(${u.id}, '${u.username.replace(/'/g, "\\'")}', '${u.cedula || ''}', '${u.email || ''}', ${u.direction_id || 'null'}, '${u.role}')" style="padding:4px 8px; font-size:0.75rem; margin-right:4px;">Editar</button>`;
+                        if (u.id !== 1) {
+                            actionBtns += `<button class="btn-danger" onclick="deleteUser(${u.id})" style="padding:4px 8px; font-size:0.75rem;">Eliminar</button>`;
+                        } else {
+                            actionBtns += `<span style="color:var(--text-secondary); font-size:0.8rem;">Protegido</span>`;
+                        }
+                    } else {
+                        actionBtns = '<span style="color:var(--text-secondary); font-size:0.8rem;">N/A</span>';
+                    }
+
+                    usersTable.innerHTML += `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>${u.username}</td>
+                            <td>${u.cedula || 'N/A'}</td>
+                            <td>${u.email || 'N/A'}</td>
+                            <td>${u.direction_name || 'N/A'}</td>
+                            <td>${u.role}</td>
+                            <td>${actionBtns}</td>
+                        </tr>
+                    `;
+                });
+
+            } catch (e) {
+                console.error("Error cargando datos:", e);
+            }
+        }
+
+        async function loadAuditLogs() {
+            if (currentRole !== 'Administrador' && currentRole !== 'Supervisor') return;
+            try {
+                const res = await fetch('/api/audit-logs', { headers: getHeaders() });
+                const logs = await res.json();
+                const tbody = document.getElementById('auditTable');
+                tbody.innerHTML = '';
+                if(logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay registros de auditoría.</td></tr>';
+                    return;
+                }
+                logs.forEach(l => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${l.id}</td>
+                            <td>${new Date(l.date).toLocaleString()}</td>
+                            <td><b>${l.username || 'Sistema'}</b></td>
+                            <td><span class="badge badge-yellow">${l.action}</span></td>
+                            <td>${l.details}</td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error("Error cargando auditoría:", err);
+            }
+        }
+
+        // FUNCIONES DE EDICIÓN DE ARTÍCULOS
+        function openEditItemModal(id, desc, asset, unitType, qty, price, project, assigned) {
+            document.getElementById('editItemId').value = id;
+            document.getElementById('editItemDesc').value = desc;
+            document.getElementById('editItemAsset').value = asset === 'null' ? '' : asset;
+            document.getElementById('editItemUnitType').value = unitType;
+            document.getElementById('editItemQty').value = qty;
+            document.getElementById('editItemPrice').value = price;
+            document.getElementById('editItemProject').value = project;
+            document.getElementById('editItemAssigned').value = assigned;
+            document.getElementById('editItemModal').style.display = 'flex';
+        }
+
+        function closeEditItemModal() {
+            document.getElementById('editItemModal').style.display = 'none';
+        }
+
+        async function updateItem() {
+            const id = document.getElementById('editItemId').value;
+            const body = {
+                description: document.getElementById('editItemDesc').value.trim(),
+                national_asset_number: document.getElementById('editItemAsset').value.trim(),
+                unit_type: document.getElementById('editItemUnitType').value,
+                quantity: parseFloat(document.getElementById('editItemQty').value),
+                price: parseFloat(document.getElementById('editItemPrice').value) || 0,
+                project_name: document.getElementById('editItemProject').value.trim(),
+                assigned_username: document.getElementById('editItemAssigned').value.trim()
+            };
+
+            if(!body.description || isNaN(body.quantity)) return alert('Complete la descripción y cantidad');
+
+            const res = await fetch(`/api/items/${id}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if(res.ok) {
+                closeEditItemModal();
+                loadAllData();
+            }
+        }
+
+        // FUNCIONES DE COTIZACIÓN DE MATERIAL EXISTENTE
+        function toggleExistingItemPurchase(checkbox) {
+            const row = document.getElementById('existingItemRow');
+            row.style.display = checkbox.checked ? 'grid' : 'none';
+            if(!checkbox.checked) {
+                document.getElementById('purchaseDesc').value = '';
+                document.getElementById('purchaseDesc').readOnly = false;
+            }
+        }
+
+        function fillPurchaseFromExistingStock(itemId) {
+            if(!itemId) return;
+            const item = allItemsCache.find(i => i.id == itemId);
+            if(item) {
+                const descInput = document.getElementById('purchaseDesc');
+                descInput.value = item.description;
+                descInput.readOnly = true;
+            }
+        }
+
+        // FUNCIONES DE EDICIÓN DE USUARIOS
+        function openEditUserModal(id, username, cedula, email, directionId, role) {
+            document.getElementById('editUserId').value = id;
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editCedula').value = cedula === 'null' ? '' : cedula;
+            document.getElementById('editEmail').value = email === 'null' ? '' : email;
+            document.getElementById('editPassword').value = '';
+
+            const editDirSelect = document.getElementById('editUserDirSelect');
+            editDirSelect.innerHTML = '';
+            allDirectionsCache.forEach(d => {
+                editDirSelect.innerHTML += `<option value="${d.id}" ${d.id == directionId ? 'selected' : ''}>${d.name}</option>`;
+            });
+
+            document.getElementById('editRole').value = role;
+            document.getElementById('editUserModal').style.display = 'flex';
+        }
+
+        function closeEditUserModal() {
+            document.getElementById('editUserModal').style.display = 'none';
+        }
+
+        async function updateUser() {
+            const id = document.getElementById('editUserId').value;
+            const body = {
+                username: document.getElementById('editUsername').value.trim(),
+                cedula: document.getElementById('editCedula').value.trim(),
+                email: document.getElementById('editEmail').value.trim(),
+                password: document.getElementById('editPassword').value,
+                direction_id: document.getElementById('editUserDirSelect').value,
+                role: document.getElementById('editRole').value
+            };
+
+            if(!body.username) return alert('El nombre de usuario es obligatorio');
+
+            const res = await fetch(`/api/users/${id}`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            if(res.ok) {
+                closeEditUserModal();
+                loadAllData();
+            }
+        }
+
+        // LÓGICA DEL CHAT FLOTANTE
+        function toggleFloatingChat() {
+            const popup = document.getElementById('floatingChatPopup');
+            popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
+            if (popup.style.display === 'flex') {
+                loadChatMessages();
+            }
+        }
+
+        function toggleChatRequestInputs() {
+            const isReq = document.getElementById('chatIsRequest').checked;
+            document.getElementById('chatRequestInputs').style.display = isReq ? 'grid' : 'none';
+        }
+
+        function filterChatUsers(dirId) {
+            const userSelect = document.getElementById('chatTargetUser');
+            userSelect.innerHTML = '<option value="">Personal Específico (Opcional)</option>';
+            let filtered = allUsersCache;
+            if (dirId) {
+                filtered = allUsersCache.filter(u => u.direction_id == dirId);
+            }
+            filtered.forEach(u => {
+                userSelect.innerHTML += `<option value="${u.id}">${u.username} (${u.role})</option>`;
+            });
+        }
+
+        async function loadChatMessages() {
+            try {
+                const res = await fetch('/api/messages', { headers: getHeaders() });
+                const messages = await res.json();
+                const chatArea = document.getElementById('floatingChatMessages');
+                chatArea.innerHTML = '';
+
+                if (messages.length === 0) {
+                    chatArea.innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top:30px; font-size:0.85rem;">No hay mensajes. ¡Inicia el chat!</div>';
+                    return;
+                }
+
+                messages.forEach(m => {
+                    const isMine = m.username === currentUser;
+                    const bubble = document.createElement('div');
+                    bubble.className = `chat-bubble ${isMine ? 'mine' : 'theirs'}`;
+                    
+                    let requestHtml = '';
+                    if (m.is_request) {
+                        let statusBadge = '<span class="badge badge-yellow">Pendiente Autorización</span>';
+                        if (m.status === 'APROBADO') statusBadge = '<span class="badge badge-green">Autorizado por Supervisor</span>';
+                        if (m.status === 'RECHAZADO') statusBadge = '<span class="badge badge-red">Rechazado</span>';
+                        if (m.status === 'COMPLETADO_PRÉSTAMO') statusBadge = '<span class="badge badge-green">✔ Préstamo Autorizado</span>';
+                        if (m.status === 'COMPLETADO_COMPRA') statusBadge = '<span class="badge badge-blue">🛒 Enviado a Compras</span>';
+
+                        let actionBtns = '';
+                        if (m.status === 'PENDIENTE_APROBACION' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
+                            actionBtns += `<button class="btn-info" onclick="approveMessage(${m.id})" style="padding:3px 6px; font-size:0.7rem; margin-right:4px;">✅ Autorizar</button>`;
+                            actionBtns += `<button class="btn-danger" onclick="rejectMessage(${m.id})" style="padding:3px 6px; font-size:0.7rem;">❌ Rechazar</button>`;
+                        }
+
+                        let fulfillmentHtml = '';
+                        if (m.status === 'APROBADO' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
+                            const matches = allItemsCache.filter(i => i.description.toLowerCase().includes((m.item_description || '').toLowerCase()) && i.quantity >= m.quantity);
+                            
+                            if (matches.length > 0) {
+                                let options = matches.map(i => `<option value="${i.id}">${i.description} [${i.direction_name}] (Disp: ${i.quantity})</option>`).join('');
+                                fulfillmentHtml = `
+                                    <div style="margin-top:8px; padding:6px; background:var(--card-bg); border-radius:6px;">
+                                        <p style="font-size:0.75rem; margin:0 0 4px 0; color:var(--accent); font-weight:600;">📦 Hay existencia en inventario:</p>
+                                        <select id="matchItem-${m.id}" style="font-size:0.75rem; padding:4px; margin-bottom:4px;">${options}</select>
+                                        <button class="btn-info" onclick="processChatLoan(${m.id})" style="padding:3px 8px; font-size:0.75rem; width:100%;">Procesar Préstamo</button>
+                                    </div>
+                                `;
+                            } else {
+                                fulfillmentHtml = `
+                                    <div style="margin-top:8px; padding:6px; background:var(--card-bg); border-radius:6px;">
+                                        <p style="font-size:0.75rem; margin:0 0 4px 0; color:#ef4444; font-weight:600;">⚠️ No hay existencia en stock.</p>
+                                        <button class="btn-warning" onclick="processChatPurchase(${m.id})" style="padding:3px 8px; font-size:0.75rem; width:100%;">🛒 Enviar a Cotización de Compra</button>
+                                    </div>
+                                `;
+                            }
+                        }
+
+                        requestHtml = `
+                            <div class="request-card-chat">
+                                <p style="margin:0 0 4px 0;"><b>📦 Solicitud:</b> ${m.item_description} (Cant/Metros: <b>${m.quantity}</b>)</p>
+                                <p style="margin:0 0 6px 0;">Estado: ${statusBadge}</p>
+                                <div style="margin-bottom:4px;">${actionBtns}</div>
+                                ${fulfillmentHtml}
+                            </div>
+                        `;
+                    }
+
+                    const targetInfo = m.target_username ? ` ➔ 👤 ${m.target_username}` : (m.target_direction_name ? ` ➔ 🏢 ${m.target_direction_name}` : '');
+
+                    bubble.innerHTML = `
+                        <div class="meta"><span><b>${m.username}</b>${targetInfo}</span><span>${new Date(m.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                        <div>${m.message}</div>
+                        ${requestHtml}
+                    `;
+                    chatArea.appendChild(bubble);
+                });
+                chatArea.scrollTop = chatArea.scrollHeight;
+            } catch (err) {
+                console.error("Error cargando chat:", err);
+            }
+        }
+
+        async function sendFloatingChatMessage() {
+            const message = document.getElementById('chatMessageInput').value.trim();
+            const target_direction_id = document.getElementById('chatTargetDir').value || null;
+            const target_user_id = document.getElementById('chatTargetUser').value || null;
+            const is_request = document.getElementById('chatIsRequest').checked;
+            const item_description = document.getElementById('chatItemDesc').value.trim();
+            const quantity = parseFloat(document.getElementById('chatItemQty').value);
+
+            if (!message && !is_request) return;
+            if (is_request && (!item_description || isNaN(quantity))) {
+                return alert('Para solicitar apoyo, indique la descripción y cantidad/metros.');
+            }
+
+            const body = { target_direction_id, target_user_id, message: message || 'Solicitud de apoyo de inventario', is_request, item_description, quantity };
+            
+            const res = await fetch('/api/messages', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if(res.ok) {
+                document.getElementById('chatMessageInput').value = '';
+                document.getElementById('chatIsRequest').checked = false;
+                document.getElementById('chatItemDesc').value = '';
+                document.getElementById('chatItemQty').value = '';
+                document.getElementById('chatRequestInputs').style.display = 'none';
+                loadChatMessages();
+            } else {
+                alert(data.error);
+            }
+        }
+
+        async function approveMessage(id) {
+            const res = await fetch(`/api/messages/${id}/approve`, { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadChatMessages();
+        }
+
+        async function rejectMessage(id) {
+            const res = await fetch(`/api/messages/${id}/reject`, { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadChatMessages();
+        }
+
+        async function processChatLoan(msgId) {
+            const selectEl = document.getElementById(`matchItem-${msgId}`);
+            if(!selectEl) return alert('Seleccione un artículo');
+            const itemId = selectEl.value;
+
+            const res = await fetch(`/api/messages/${msgId}/process-loan`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ item_id: itemId })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+            loadChatMessages();
+        }
+
+        async function processChatPurchase(msgId) {
+            const res = await fetch(`/api/messages/${msgId}/process-purchase`, { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+            loadChatMessages();
+        }
+
+        // SELECTOR ESTILIZADO DE RECEPTOR
+        function openReceiverDropdown() {
+            document.getElementById('receiverDropdownList').style.display = 'block';
+        }
+
+        function filterReceiverDropdown(query) {
+            const filtered = allUsersCache.filter(u => 
+                u.username.toLowerCase().includes(query.toLowerCase()) || 
+                (u.cedula && u.cedula.toLowerCase().includes(query.toLowerCase()) ||
+                (u.email && u.email.toLowerCase().includes(query.toLowerCase())))
+            );
+            renderReceiverDropdown(filtered);
+            document.getElementById('receiverDropdownList').style.display = 'block';
+        }
+
+        function renderReceiverDropdown(users) {
+            const listEl = document.getElementById('receiverDropdownList');
+            listEl.innerHTML = '';
+            if (users.length === 0) {
+                listEl.innerHTML = '<div class="custom-dropdown-item"><div class="item-title">No se encontraron usuarios</div></div>';
+                return;
+            }
+            users.forEach(u => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'custom-dropdown-item';
+                itemDiv.innerHTML = `
+                    <div class="item-title">${u.username}</div>
+                    <div class="item-sub">Cédula: ${u.cedula || 'N/A'} | Correo: ${u.email || 'N/A'} | Unidad: ${u.direction_name || 'Sin unidad'} (${u.role})</div>
+                `;
+                itemDiv.onclick = () => {
+                    document.getElementById('receiverRespInput').value = u.username;
+                    listEl.style.display = 'none';
+                };
+                listEl.appendChild(itemDiv);
+            });
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.custom-select-wrapper')) {
+                const list = document.getElementById('receiverDropdownList');
+                if(list) list.style.display = 'none';
+            }
+        });
+
+        async function addItem() {
+            const body = {
+                direction_id: document.getElementById('itemDirSelect').value,
+                description: document.getElementById('desc').value,
+                national_asset_number: document.getElementById('assetNum').value,
+                unit_type: document.getElementById('unitTypeSelect').value,
+                quantity: parseFloat(document.getElementById('qty').value),
+                price: parseFloat(document.getElementById('itemPrice').value) || 0,
+                project_name: document.getElementById('projectName').value,
+                assigned_username: document.getElementById('assignedUser').value
+            };
+            if(!body.description || isNaN(body.quantity)) return alert('Complete los campos obligatorios');
+            const res = await fetch('/api/items', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function createPurchaseRequest() {
+            const isExisting = document.getElementById('isExistingItemCheck').checked;
+            const existingId = isExisting ? document.getElementById('purchaseExistingItemSelect').value : null;
+            const body = {
+                item_description: document.getElementById('purchaseDesc').value.trim(),
+                quantity: parseFloat(document.getElementById('purchaseQty').value),
+                estimated_price: parseFloat(document.getElementById('purchasePriceUSD').value) || 0,
+                estimated_price_bs: parseFloat(document.getElementById('purchasePriceBs').value) || 0,
+                quotation_ref: document.getElementById('purchaseQuotationRef').value.trim(),
+                existing_item_id: existingId || null
+            };
+            if(!body.item_description || isNaN(body.quantity)) return alert('Complete la descripción y cantidad');
+            const res = await fetch('/api/purchase-requests', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            document.getElementById('purchaseDesc').value = '';
+            document.getElementById('purchaseQty').value = '';
+            document.getElementById('purchasePriceUSD').value = '';
+            document.getElementById('purchasePriceBs').value = '';
+            document.getElementById('purchaseQuotationRef').value = '';
+            document.getElementById('isExistingItemCheck').checked = false;
+            document.getElementById('existingItemRow').style.display = 'none';
+            document.getElementById('purchaseDesc').readOnly = false;
+            loadAllData();
+        }
+
+        async function returnPurchase(id) {
+            const notes = prompt('Motivo de devolución:');
+            if(notes === null) return;
+            const res = await fetch(`/api/purchase-requests/${id}/return`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ notes })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function approvePurchase(id) {
+            const res = await fetch(`/api/purchase-requests/${id}/approve`, { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        function openReportModal(loanId) {
+            const l = allLoansCache.find(x => x.id === loanId);
+            if(!l) return alert('No encontrado');
+            const content = `
+                <div style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:15px; margin-bottom:20px;">
+                    <h3 style="margin:0;">REPÚBLICA BOLIVARIANA DE VENEZUELA</h3>
+                    <h4 style="color:var(--accent); margin:5px 0;">CENDIT - ACTA DE PRÉSTAMO / ASIGNACIÓN</h4>
+                </div>
+                <p><b>Comprobante:</b> #${l.id} | <b>Fecha:</b> ${l.date}</p>
+                <p><b>Emisor (Prestó):</b> ${l.sender_responsible} | <b>Receptor:</b> ${l.receiver_responsible}</p>
+                <p><b>Artículo:</b> ${l.item_name} | <b>Cantidad/Metros:</b> ${l.quantity} (${l.unit_type}) | <b>Precio:</b> $${l.price || 0}</p>
+                <div style="margin-top:40px; display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; text-align:center; font-size:0.85rem;">
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>ENTREGÓ</b></div>
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>RECIBIÓ</b></div>
+                    <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>SUPERVISOR</b></div>
+                </div>
+            `;
+            document.getElementById('reportContent').innerHTML = content;
+            document.getElementById('reportModal').style.display = 'flex';
+        }
+
+        function closeReportModal() { document.getElementById('reportModal').style.display = 'none'; }
+        async function addDirection() {
+            const name = document.getElementById('newDirName').value;
+            if(!name) return;
+            await fetch('/api/directions', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name }) });
+            document.getElementById('newDirName').value = '';
+            loadAllData();
+        }
+        async function deleteDirection(id) {
+            if(!confirm('¿Eliminar unidad?')) return;
+            await fetch(`/api/directions/${id}`, { method: 'DELETE', headers: getHeaders() });
+            loadAllData();
+        }
+        async function createLoan() {
+            const body = {
+                item_id: document.getElementById('loanItemSelect').value,
+                target_direction_id: document.getElementById('targetDirSelect').value,
+                receiver_responsible: document.getElementById('receiverRespInput').value,
+                quantity: parseFloat(document.getElementById('loanQty').value),
+                return_date: document.getElementById('returnDate').value,
+                is_returnable: document.getElementById('isReturnableSelect').value
+            };
+            const res = await fetch('/api/loans', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+        async function approveLoan(id) {
+            await fetch(`/api/loans/${id}/approve`, { method: 'POST', headers: getHeaders() });
+            loadAllData();
+        }
+        async function rejectLoan(id) {
+            await fetch(`/api/loans/${id}/reject`, { method: 'POST', headers: getHeaders() });
+            loadAllData();
+        }
+        async function returnLoan(id) {
+            await fetch(`/api/loans/${id}/return`, { method: 'POST', headers: getHeaders() });
+            loadAllData();
+        }
+        async function createUser() {
+            const body = {
+                username: document.getElementById('newUsername').value,
+                cedula: document.getElementById('newCedula').value,
+                email: document.getElementById('newEmail').value,
+                password: document.getElementById('newPassword').value,
+                direction_id: document.getElementById('newUserDirSelect').value,
+                role: document.getElementById('newRole').value
+            };
+            const res = await fetch('/api/users', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+        async function deleteUser(id) {
+            await fetch(`/api/users/${id}`, { method: 'DELETE', headers: getHeaders() });
+            loadAllData();
+        }
+    </script>
+</body>
+</html>

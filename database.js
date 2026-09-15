@@ -77,7 +77,6 @@ async function initDB() {
       );
     `);
     
-    // Asegurar compatibilidad de columnas en purchase_requests si ya existía
     await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS estimated_price_bs NUMERIC(12, 2) DEFAULT 0.00;`);
     await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS quotation_ref TEXT;`);
     await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS existing_item_id INTEGER REFERENCES items(id) ON DELETE SET NULL;`);
