@@ -23,7 +23,7 @@ async function initDB() {
         cedula TEXT UNIQUE,
         email TEXT,
         password TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'Operador',
+        role TEXT NOT NULL DEFAULT 'Usuario (Con permisos)',
         direction_id INTEGER REFERENCES directions(id) ON DELETE SET NULL
       );
     `);
@@ -74,20 +74,21 @@ async function initDB() {
       );
     `);
 
-    // TABLA PARA EL CHAT INTEGRADO Y SOLICITUDES DE APOYO
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
         id SERIAL PRIMARY KEY,
         sender_id INTEGER REFERENCES users(id),
         target_direction_id INTEGER REFERENCES directions(id) ON DELETE SET NULL,
+        target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
         message TEXT NOT NULL,
         is_request BOOLEAN DEFAULT FALSE,
         item_description TEXT,
         quantity REAL,
-        status TEXT DEFAULT 'PENDIENTE_UNIDAD', -- PENDIENTE_UNIDAD, APROBADO_UNIDAD, APROBADO_SUPERVISOR, RECHAZADO
+        status TEXT DEFAULT 'PENDIENTE_UNIDAD',
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`);
 
     const dirCount = await pool.query('SELECT COUNT(*) FROM directions');
     if (parseInt(dirCount.rows[0].count) === 0) {

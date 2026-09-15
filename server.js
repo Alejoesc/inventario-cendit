@@ -19,9 +19,16 @@ async function authMiddleware(req, res, next) {
   }
 }
 
+function supervisorOrAdminMiddleware(req, res, next) {
+  if (!req.user || (req.user.role !== 'Administrador' && req.user.role !== 'Supervisor')) {
+    return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de Supervisor o Administrador.' });
+  }
+  next();
+}
+
 function adminMiddleware(req, res, next) {
   if (!req.user || req.user.role !== 'Administrador') {
-    return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de Supervisor / Administrador.' });
+    return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de Administrador.' });
   }
   next();
 }
@@ -56,12 +63,12 @@ app.get('/api/users', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/users', authMiddleware, adminMiddleware, async (req, res) => {
+app.post('/api/users', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   const { username, cedula, email, password, role, direction_id } = req.body;
   try {
     await db.query(
       `INSERT INTO users (username, cedula, email, password, role, direction_id) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [username, cedula, email || null, password, role || 'Operador', direction_id || null]
+      [username, cedula, email || null, password, role || 'Usuario (Con permisos)', direction_id || null]
     );
     res.json({ message: 'Usuario creado exitosamente' });
   } catch (err) {
@@ -87,7 +94,7 @@ app.get('/api/directions', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/directions', authMiddleware, adminMiddleware, async (req, res) => {
+app.post('/api/directions', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   const { name } = req.body;
   try {
     await db.query('INSERT INTO directions (name) VALUES ($1)', [name]);
@@ -115,9 +122,8 @@ app.get('/api/items', authMiddleware, async (req, res) => {
     `;
     let params = [];
 
-    if (req.user.role !== 'Administrador') {
-      queryText += ` WHERE items.direction_id = $1`;
-      params.push(req.user.direction_id);
+    if (req.user.role === 'Administrador' || req.user.role === 'Supervisor' || req.user.role === 'Usuario (Solo lectura)') {
+      // Pueden ver todo o su unidad según corresponda
     }
 
     const result = await db.query(queryText, params);
@@ -132,9 +138,12 @@ app.get('/api/items', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/items', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') {
+    return res.status(403).json({ error: 'Usuario con permisos de solo lectura no puede registrar artículos.' });
+  }
   let { direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username } = req.body;
   
-  if (req.user.role !== 'Administrador') {
+  if (req.user.role !== 'Administrador' && req.user.role !== 'Supervisor') {
     direction_id = req.user.direction_id;
   }
 
@@ -151,7 +160,7 @@ app.post('/api/items', authMiddleware, async (req, res) => {
 
 app.get('/api/loans', authMiddleware, async (req, res) => {
   try {
-    let queryText = `
+    const result = await db.query(`
       SELECT loans.*, 
              items.description as item_name, 
              items.national_asset_number,
@@ -172,15 +181,7 @@ app.get('/api/loans', authMiddleware, async (req, res) => {
       LEFT JOIN directions du1 ON u1.direction_id = du1.id
       LEFT JOIN users u2 ON loans.receiver_responsible = u2.username
       LEFT JOIN directions du2 ON u2.direction_id = du2.id
-    `;
-    let params = [];
-
-    if (req.user.role !== 'Administrador') {
-      queryText += ` WHERE loans.source_direction_id = $1 OR loans.target_direction_id = $1`;
-      params.push(req.user.direction_id);
-    }
-
-    const result = await db.query(queryText, params);
+    `);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -188,6 +189,9 @@ app.get('/api/loans', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/loans', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') {
+    return res.status(403).json({ error: 'Usuario de solo lectura.' });
+  }
   const { item_id, target_direction_id, receiver_responsible, quantity, return_date, is_returnable } = req.body;
   const sender_responsible = req.user.username;
 
@@ -211,7 +215,7 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
+app.post('/api/loans/:id/approve', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   const client = await db.pool.connect();
   try {
     const loanRes = await client.query("SELECT * FROM loans WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
@@ -241,7 +245,7 @@ app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, async (req, 
   }
 });
 
-app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, async (req, res) => {
+app.post('/api/loans/:id/reject', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     const result = await db.query("UPDATE loans SET status = 'RECHAZADO' WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
     if (result.rowCount === 0) return res.status(400).json({ error: 'No se pudo rechazar' });
@@ -252,6 +256,7 @@ app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, async (req, r
 });
 
 app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') return res.status(403).json({ error: 'Solo lectura.' });
   const client = await db.pool.connect();
   try {
     const loanRes = await client.query("SELECT * FROM loans WHERE id = $1 AND status = 'ACTIVO'", [req.params.id]);
@@ -279,18 +284,12 @@ app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
 
 app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
   try {
-    let queryText = `
+    const result = await db.query(`
       SELECT purchase_requests.*, users.username, users.cedula, directions.name as direction_name
       FROM purchase_requests
       JOIN users ON purchase_requests.user_id = users.id
       LEFT JOIN directions ON purchase_requests.direction_id = directions.id
-    `;
-    let params = [];
-    if (req.user.role !== 'Administrador') {
-      queryText += ` WHERE purchase_requests.direction_id = $1`;
-      params.push(req.user.direction_id);
-    }
-    const result = await db.query(queryText, params);
+    `);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -298,50 +297,54 @@ app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') return res.status(403).json({ error: 'Solo lectura.' });
   const { item_description, quantity, estimated_price } = req.body;
   try {
     await db.query(
       `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')`,
       [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0]
     );
-    res.json({ message: 'Solicitud de cotización enviada al jefe de unidad.' });
+    res.json({ message: 'Solicitud de cotización enviada al supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/purchase-requests/:id/return', authMiddleware, adminMiddleware, async (req, res) => {
+app.post('/api/purchase-requests/:id/return', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   const { notes } = req.body;
   try {
     await db.query(
       `UPDATE purchase_requests SET status = 'DEVUELTO', supervisor_notes = $1 WHERE id = $2`,
-      [notes || 'Revisar especificaciones de cotización', req.params.id]
+      [notes || 'Revisar especificaciones', req.params.id]
     );
-    res.json({ message: 'Solicitud devuelta al usuario con observaciones.' });
+    res.json({ message: 'Devuelto al usuario con observaciones.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/purchase-requests/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
+app.post('/api/purchase-requests/:id/approve', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     await db.query(`UPDATE purchase_requests SET status = 'APROBADO' WHERE id = $1`, [req.params.id]);
-    res.json({ message: 'Solicitud de cotización aprobada.' });
+    res.json({ message: 'Solicitud aprobada.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// API DE CHAT Y SOLICITUDES INTERDEPARTAMENTALES
+// CHAT Y SOLICITUDES
 app.get('/api/messages', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT messages.*, users.username, users.role, directions.name as direction_name,
-             target_dir.name as target_direction_name
+      SELECT messages.*, 
+             u1.username, u1.role, d1.name as direction_name,
+             d2.name as target_direction_name,
+             u2.username as target_username
       FROM messages
-      JOIN users ON messages.sender_id = users.id
-      LEFT JOIN directions ON users.direction_id = directions.id
-      LEFT JOIN directions target_dir ON messages.target_direction_id = target_dir.id
+      JOIN users u1 ON messages.sender_id = u1.id
+      LEFT JOIN directions d1 ON u1.direction_id = d1.id
+      LEFT JOIN directions d2 ON messages.target_direction_id = d2.id
+      LEFT JOIN users u2 ON messages.target_user_id = u2.id
       ORDER BY messages.date ASC
     `);
     res.json(result.rows);
@@ -351,14 +354,15 @@ app.get('/api/messages', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/messages', authMiddleware, async (req, res) => {
-  const { target_direction_id, message, is_request, item_description, quantity } = req.body;
+  const { target_direction_id, target_user_id, message, is_request, item_description, quantity } = req.body;
   try {
     await db.query(
-      `INSERT INTO messages (sender_id, target_direction_id, message, is_request, item_description, quantity, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO messages (sender_id, target_direction_id, target_user_id, message, is_request, item_description, quantity, status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         req.user.id, 
         target_direction_id || null, 
+        target_user_id || null,
         message, 
         is_request || false, 
         item_description || null, 
@@ -366,36 +370,38 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
         is_request ? 'PENDIENTE_UNIDAD' : 'APROBADO_UNIDAD'
       ]
     );
-    res.json({ message: 'Mensaje enviado con éxito' });
+    res.json({ message: 'Mensaje enviado' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Visto bueno de la unidad receptora
 app.post('/api/messages/:id/approve-unit', authMiddleware, async (req, res) => {
   try {
     const msgRes = await db.query('SELECT * FROM messages WHERE id = $1', [req.params.id]);
-    if (msgRes.rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    if (msgRes.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
     const msg = msgRes.rows[0];
 
-    // Verificar si el usuario pertenece a la unidad destino o es Administrador
-    if (req.user.role !== 'Administrador' && req.user.direction_id !== msg.target_direction_id) {
-      return res.status(403).json({ error: 'Solo personal de la unidad receptora puede dar el visto bueno.' });
+    const isAuthorized = req.user.role === 'Administrador' || 
+                         req.user.role === 'Supervisor' || 
+                         req.user.id === msg.target_user_id || 
+                         (msg.target_direction_id && req.user.direction_id === msg.target_direction_id);
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'No autorizado para dar el visto bueno.' });
     }
 
     await db.query("UPDATE messages SET status = 'APROBADO_UNIDAD' WHERE id = $1", [req.params.id]);
-    res.json({ message: 'Visto bueno otorgado por la unidad.' });
+    res.json({ message: 'Visto bueno otorgado.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Aprobación de supervisor / administrador (Escalamiento o aprobación directa)
-app.post('/api/messages/:id/approve-supervisor', authMiddleware, adminMiddleware, async (req, res) => {
+app.post('/api/messages/:id/approve-supervisor', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     await db.query("UPDATE messages SET status = 'APROBADO_SUPERVISOR' WHERE id = $1", [req.params.id]);
-    res.json({ message: 'Solicitud aprobada por Supervisor / Administrador.' });
+    res.json({ message: 'Aprobado por Supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -404,11 +410,16 @@ app.post('/api/messages/:id/approve-supervisor', authMiddleware, adminMiddleware
 app.post('/api/messages/:id/reject', authMiddleware, async (req, res) => {
   try {
     const msgRes = await db.query('SELECT * FROM messages WHERE id = $1', [req.params.id]);
-    if (msgRes.rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    if (msgRes.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
     const msg = msgRes.rows[0];
 
-    if (req.user.role !== 'Administrador' && req.user.direction_id !== msg.target_direction_id) {
-      return res.status(403).json({ error: 'No autorizado para rechazar esta solicitud.' });
+    const isAuthorized = req.user.role === 'Administrador' || 
+                         req.user.role === 'Supervisor' || 
+                         req.user.id === msg.target_user_id || 
+                         (msg.target_direction_id && req.user.direction_id === msg.target_direction_id);
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'No autorizado.' });
     }
 
     await db.query("UPDATE messages SET status = 'RECHAZADO' WHERE id = $1", [req.params.id]);

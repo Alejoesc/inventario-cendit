@@ -32,6 +32,39 @@
         </div>
     </div>
 
+    <!-- CHAT FLOTANTE A MANO DERECHA INFERIOR -->
+    <div class="floating-chat-btn" onclick="toggleFloatingChat()" title="Chat y Solicitudes de Apoyo">💬</div>
+    
+    <div class="floating-chat-popup" id="floatingChatPopup">
+        <div class="floating-chat-header">
+            <span>💬 Chat y Solicitud de Apoyo</span>
+            <button class="floating-chat-close" onclick="toggleFloatingChat()">✕</button>
+        </div>
+        <div class="floating-chat-messages" id="floatingChatMessages"></div>
+        <div class="floating-chat-footer">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                <select id="chatTargetDir" onchange="filterChatUsers(this.value)" style="font-size:0.8rem; padding:6px;">
+                    <option value="">Cualquier Unidad</option>
+                </select>
+                <select id="chatTargetUser" style="font-size:0.8rem; padding:6px;">
+                    <option value="">Personal Específico</option>
+                </select>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; font-size:0.8rem;">
+                <input type="checkbox" id="chatIsRequest" onchange="toggleChatRequestInputs()" style="width:16px; height:16px;">
+                <label for="chatIsRequest" style="cursor:pointer; font-weight:500;">Solicitar Apoyo de Material</label>
+            </div>
+            <div id="chatRequestInputs" style="display:none; grid-template-columns: 2fr 1fr; gap:6px;">
+                <input type="text" id="chatItemDesc" placeholder="Descripción del equipo" style="font-size:0.8rem; padding:6px;">
+                <input type="number" id="chatItemQty" placeholder="Cant." style="font-size:0.8rem; padding:6px;" step="any">
+            </div>
+            <div style="display:flex; gap:6px;">
+                <input type="text" id="chatMessageInput" placeholder="Escribe un mensaje..." style="font-size:0.85rem; padding:8px;" onkeypress="if(event.key === 'Enter') sendFloatingChatMessage()">
+                <button onclick="sendFloatingChatMessage()" style="padding:8px 12px; font-size:0.85rem;">Enviar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- SIDEBAR -->
     <aside>
         <div class="brand-header">CENDIT C.I.</div>
@@ -40,7 +73,6 @@
             <li onclick="switchView('inventory', this)"><a href="#">📦 Stock por Unidad</a></li>
             <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos</a></li>
             <li onclick="switchView('purchases', this)"><a href="#">🛒 Cotizaciones y Compras</a></li>
-            <li onclick="switchView('chat', this)"><a href="#">💬 Chat y Solicitudes</a></li>
             <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades</a></li>
             <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Accesos</a></li>
             <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Salir</a></li>
@@ -78,7 +110,7 @@
                     </div>
                     <div class="metric-card">
                         <p class="metric-number" id="statItems">0</p>
-                        <p class="metric-label">Artículos de tu Unidad</p>
+                        <p class="metric-label">Artículos Registrados</p>
                     </div>
                     <div class="metric-card">
                         <p class="metric-number" id="statLoans">0</p>
@@ -88,7 +120,7 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Gestión automatizada con chat interdepartamental, solicitud de apoyo de inventario entre unidades, aprobación por visto bueno y escalamiento al supervisor inmediato.</p>
+                    <p>Utiliza el chat flotante en la esquina inferior derecha para comunicarte, elegir unidades y personal específico, solicitar apoyo de inventario y gestionar aprobaciones de jefaturas y supervisores.</p>
                 </div>
             </div>
 
@@ -205,7 +237,7 @@
                         <input type="text" id="purchaseDesc" placeholder="Descripción del material a cotizar">
                         <input type="number" id="purchaseQty" placeholder="Cantidad requerida" step="any">
                         <input type="number" id="purchasePrice" placeholder="Precio estimado unitario ($)" step="any">
-                        <button onclick="createPurchaseRequest()">Enviar a Jefe de Unidad</button>
+                        <button onclick="createPurchaseRequest()">Enviar a Supervisor</button>
                     </div>
                 </div>
 
@@ -220,7 +252,7 @@
                                     <th>Material</th>
                                     <th>Cant.</th>
                                     <th>Precio Est. ($)</th>
-                                    <th>Estado / Observaciones del Jefe</th>
+                                    <th>Estado / Observaciones</th>
                                     <th>Acciones (Supervisor)</th>
                                 </tr>
                             </thead>
@@ -230,41 +262,7 @@
                 </div>
             </div>
 
-            <!-- VISTA 5: CHAT Y SOLICITUDES INTERDEPARTAMENTALES -->
-            <div id="view-chat" class="view-section">
-                <div class="box">
-                    <h3>💬 Chat de Coordinación y Solicitudes de Apoyo entre Unidades</h3>
-                    <p style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:15px;">Comunícate con otras unidades o solicita apoyo de inventario. La unidad receptora puede dar el visto bueno, y el supervisor puede aprobar directamente.</p>
-                    
-                    <div class="chat-container">
-                        <div class="chat-messages" id="chatMessagesArea"></div>
-                        
-                        <div class="chat-input-area">
-                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                <select id="chatTargetDir" style="flex: 1; min-width: 200px;">
-                                    <option value="">💬 Chat General (Todas las Unidades)</option>
-                                </select>
-                                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                                    <input type="checkbox" id="chatIsRequest" onchange="toggleRequestInputs()" style="width: 18px; height: 18px;"> 
-                                    Solicitar Apoyo de Material / Equipo
-                                </label>
-                            </div>
-
-                            <div id="chatRequestInputs" style="display: none; display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
-                                <input type="text" id="chatItemDesc" placeholder="Descripción detallada del equipo o material solicitado">
-                                <input type="number" id="chatItemQty" placeholder="Cantidad" step="any">
-                            </div>
-
-                            <div style="display: flex; gap: 10px;">
-                                <input type="text" id="chatMessageInput" placeholder="Escribe un mensaje..." onkeypress="if(event.key === 'Enter') sendChatMessage()" style="flex: 1;">
-                                <button onclick="sendChatMessage()">Enviar Mensaje</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- VISTA 6: DIRECCIONES -->
+            <!-- VISTA 5: DIRECCIONES -->
             <div id="view-directions" class="view-section">
                 <div class="box" id="addDirBox" style="display:none;">
                     <h3>Gestión de Direcciones y Unidades CENDIT</h3>
@@ -286,14 +284,14 @@
                 </div>
             </div>
 
-            <!-- VISTA 7: USUARIOS -->
+            <!-- VISTA 6: USUARIOS -->
             <div id="view-users" class="view-section">
                 <div class="box">
-                    <h3>Crear Nuevo Usuario del Sistema (Con Correo y Cédula)</h3>
+                    <h3>Crear Nuevo Usuario (Roles: Administrador, Supervisor, Con Permisos, Solo Lectura)</h3>
                     <div class="form-row">
                         <input type="text" id="newUsername" placeholder="Nombre y Apellido">
                         <input type="text" id="newCedula" placeholder="Cédula (Ej: V-26123456)">
-                        <input type="email" id="newEmail" placeholder="Correo electrónico (ej: usuario@cendit.gob.ve)">
+                        <input type="email" id="newEmail" placeholder="Correo electrónico">
                     </div>
                     <div class="form-row">
                         <input type="password" id="newPassword" placeholder="Contraseña">
@@ -301,8 +299,10 @@
                             <option value="">Seleccione Unidad / Dirección...</option>
                         </select>
                         <select id="newRole">
-                            <option value="Operador">Operador</option>
-                            <option value="Administrador">Supervisor / Jefe de Unidad</option>
+                            <option value="Usuario (Con permisos)">Usuario (Con permisos)</option>
+                            <option value="Usuario (Solo lectura)">Usuario (Solo lectura)</option>
+                            <option value="Supervisor">Supervisor</option>
+                            <option value="Administrador">Administrador</option>
                         </select>
                         <button onclick="createUser()">Registrar Usuario</button>
                     </div>
@@ -397,14 +397,14 @@
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
             document.getElementById('senderLockedInput').value = currentUser;
             document.getElementById('assignedUser').value = currentUser;
-            if (currentRole === 'Administrador') {
+            if (currentRole === 'Administrador' || currentRole === 'Supervisor') {
                 document.getElementById('menuUsers').style.display = 'block';
                 document.getElementById('addItemBox').style.display = 'block';
                 document.getElementById('addDirBox').style.display = 'block';
                 document.getElementById('dirActionHeader').style.display = 'table-cell';
             }
             loadAllData();
-            setInterval(loadChatMessages, 5000); // Refrescar chat cada 5s
+            setInterval(loadChatMessages, 5000);
         }
 
         const getHeaders = () => ({ 'Content-Type': 'application/json', 'x-user': currentUser });
@@ -415,10 +415,6 @@
             document.getElementById(`view-${viewName}`).classList.add('active');
             if(el) el.classList.add('active');
             document.getElementById('headerTitle').innerText = el ? el.innerText.trim() : 'Panel de Control';
-            if(viewName === 'chat') {
-                const chatArea = document.getElementById('chatMessagesArea');
-                chatArea.scrollTop = chatArea.scrollHeight;
-            }
         }
 
         async function loadAllData() {
@@ -450,7 +446,7 @@
                 itemDir.innerHTML = '<option value="">Seleccione Dirección Propietaria</option>';
                 targetDir.innerHTML = '<option value="">Seleccione Dirección Destino</option>';
                 newUserDir.innerHTML = '<option value="">Seleccione Unidad / Dirección...</option>';
-                chatTargetDir.innerHTML = '<option value="">💬 Chat General (Todas las Unidades)</option>';
+                chatTargetDir.innerHTML = '<option value="">Cualquier Unidad</option>';
 
                 allDirectionsCache.forEach(d => {
                     itemDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
@@ -459,6 +455,7 @@
                     chatTargetDir.innerHTML += `<option value="${d.id}">Unidad: ${d.name}</option>`;
                 });
 
+                filterChatUsers('');
                 renderReceiverDropdown(allUsersCache);
                 loadChatMessages();
 
@@ -486,7 +483,7 @@
                 const dirTable = document.getElementById('directionsTable');
                 dirTable.innerHTML = '';
                 allDirectionsCache.forEach(d => {
-                    let actionTd = currentRole === 'Administrador' ? `<td><button class="btn-danger" onclick="deleteDirection(${d.id})">Eliminar</button></td>` : '';
+                    let actionTd = (currentRole === 'Administrador' || currentRole === 'Supervisor') ? `<td><button class="btn-danger" onclick="deleteDirection(${d.id})">Eliminar</button></td>` : '';
                     dirTable.innerHTML += `<tr><td>${d.id}</td><td>${d.name}</td>${actionTd}</tr>`;
                 });
 
@@ -522,7 +519,7 @@
                     if (l.status === 'RECHAZADO') statusBadge = '<span class="badge badge-red">RECHAZADO</span>';
 
                     let actionButtons = '';
-                    if (l.status === 'PENDIENTE' && currentRole === 'Administrador') {
+                    if (l.status === 'PENDIENTE' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
                         actionButtons = `
                             <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px;">Aprobar</button>
                             <button class="btn-danger" onclick="rejectLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Rechazar</button>
@@ -556,10 +553,10 @@
                 allPurchasesCache.forEach(p => {
                     let pBadge = '<span class="badge badge-yellow">PENDIENTE</span>';
                     if (p.status === 'APROBADO') pBadge = '<span class="badge badge-green">APROBADO</span>';
-                    if (p.status === 'DEVUELTO') pBadge = '<span class="badge badge-red">DEVUELTO POR JEFE</span>';
+                    if (p.status === 'DEVUELTO') pBadge = '<span class="badge badge-red">DEVUELTO POR SUPERVISOR</span>';
 
                     let pActions = '';
-                    if (currentRole === 'Administrador' && p.status === 'PENDIENTE') {
+                    if ((currentRole === 'Administrador' || currentRole === 'Supervisor') && p.status === 'PENDIENTE') {
                         pActions = `
                             <button class="btn-info" onclick="approvePurchase(${p.id})" style="padding:4px 8px; font-size:0.75rem;">Aprobar</button>
                             <button class="btn-warning" onclick="returnPurchase(${p.id})" style="padding:4px 8px; font-size:0.75rem;">Devolver</button>
@@ -592,7 +589,7 @@
                             <td>${u.email || 'N/A'}</td>
                             <td>${u.direction_name || 'N/A'}</td>
                             <td>${u.role}</td>
-                            <td>${u.id !== 1 && currentRole === 'Administrador' ? `<button class="btn-danger" onclick="deleteUser(${u.id})">Eliminar</button>` : '<span style="color:var(--text-secondary); font-size:0.85rem;">Protegido</span>'}</td>
+                            <td>${u.id !== 1 && (currentRole === 'Administrador' || currentRole === 'Supervisor') ? `<button class="btn-danger" onclick="deleteUser(${u.id})">Eliminar</button>` : '<span style="color:var(--text-secondary); font-size:0.85rem;">Protegido</span>'}</td>
                         </tr>
                     `;
                 });
@@ -602,21 +599,41 @@
             }
         }
 
-        // LÓGICA DEL CHAT
-        function toggleRequestInputs() {
+        // LÓGICA DEL CHAT FLOTANTE
+        function toggleFloatingChat() {
+            const popup = document.getElementById('floatingChatPopup');
+            popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
+            if (popup.style.display === 'flex') {
+                loadChatMessages();
+            }
+        }
+
+        function toggleChatRequestInputs() {
             const isReq = document.getElementById('chatIsRequest').checked;
             document.getElementById('chatRequestInputs').style.display = isReq ? 'grid' : 'none';
+        }
+
+        function filterChatUsers(dirId) {
+            const userSelect = document.getElementById('chatTargetUser');
+            userSelect.innerHTML = '<option value="">Personal Específico (Opcional)</option>';
+            let filtered = allUsersCache;
+            if (dirId) {
+                filtered = allUsersCache.filter(u => u.direction_id == dirId);
+            }
+            filtered.forEach(u => {
+                userSelect.innerHTML += `<option value="${u.id}">${u.username} (${u.role})</option>`;
+            });
         }
 
         async function loadChatMessages() {
             try {
                 const res = await fetch('/api/messages', { headers: getHeaders() });
                 const messages = await res.json();
-                const chatArea = document.getElementById('chatMessagesArea');
+                const chatArea = document.getElementById('floatingChatMessages');
                 chatArea.innerHTML = '';
 
                 if (messages.length === 0) {
-                    chatArea.innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top:20px;">No hay mensajes en el chat. ¡Inicia la conversación!</div>';
+                    chatArea.innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top:30px; font-size:0.85rem;">No hay mensajes. ¡Inicia el chat!</div>';
                     return;
                 }
 
@@ -627,33 +644,35 @@
                     
                     let requestHtml = '';
                     if (m.is_request) {
-                        let statusBadge = '<span class="badge badge-yellow">Pendiente Unidad</span>';
-                        if (m.status === 'APROBADO_UNIDAD') statusBadge = '<span class="badge badge-green">Visto Bueno (Unidad)</span>';
+                        let statusBadge = '<span class="badge badge-yellow">Pendiente Visto Bueno</span>';
+                        if (m.status === 'APROBADO_UNIDAD') statusBadge = '<span class="badge badge-green">Visto Bueno Otorgado</span>';
                         if (m.status === 'APROBADO_SUPERVISOR') statusBadge = '<span class="badge badge-green">Aprobado Supervisor</span>';
                         if (m.status === 'RECHAZADO') statusBadge = '<span class="badge badge-red">Rechazado</span>';
 
                         let actionBtns = '';
                         if (m.status === 'PENDIENTE_UNIDAD') {
-                            actionBtns += `<button class="btn-info" onclick="approveMessageUnit(${m.id})" style="padding:4px 8px; font-size:0.75rem; margin-right:5px;">✅ Dar Visto Bueno (Unidad)</button>`;
+                            actionBtns += `<button class="btn-info" onclick="approveMessageUnit(${m.id})" style="padding:3px 6px; font-size:0.7rem; margin-right:4px;">✅ Visto Bueno</button>`;
                         }
-                        if (m.status !== 'APROBADO_SUPERVISOR' && currentRole === 'Administrador') {
-                            actionBtns += `<button class="btn-warning" onclick="approveMessageSupervisor(${m.id})" style="padding:4px 8px; font-size:0.75rem; margin-right:5px;">⚡ Aprobar Supervisor</button>`;
+                        if (m.status !== 'APROBADO_SUPERVISOR' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
+                            actionBtns += `<button class="btn-warning" onclick="approveMessageSupervisor(${m.id})" style="padding:3px 6px; font-size:0.7rem; margin-right:4px;">⚡ Sup. Aprobar</button>`;
                         }
                         if (m.status === 'PENDIENTE_UNIDAD') {
-                            actionBtns += `<button class="btn-danger" onclick="rejectMessage(${m.id})" style="padding:4px 8px; font-size:0.75rem;">❌ Rechazar</button>`;
+                            actionBtns += `<button class="btn-danger" onclick="rejectMessage(${m.id})" style="padding:3px 6px; font-size:0.7rem;">❌</button>`;
                         }
 
                         requestHtml = `
                             <div class="request-card-chat">
-                                <p style="margin:0 0 5px 0;"><b>📦 Solicitud de Apoyo:</b> ${m.item_description} (Cant: <b>${m.quantity}</b>)</p>
-                                <p style="margin:0 0 8px 0;">Estado: ${statusBadge}</p>
+                                <p style="margin:0 0 4px 0;"><b>📦 Solicitud:</b> ${m.item_description} (Cant: <b>${m.quantity}</b>)</p>
+                                <p style="margin:0 0 6px 0;">Estado: ${statusBadge}</p>
                                 <div>${actionBtns}</div>
                             </div>
                         `;
                     }
 
+                    const targetInfo = m.target_username ? ` ➔ 👤 ${m.target_username}` : (m.target_direction_name ? ` ➔ 🏢 ${m.target_direction_name}` : '');
+
                     bubble.innerHTML = `
-                        <div class="meta"><span><b>${m.username}</b> (${m.direction_name || 'General'} ➔ ${m.target_direction_name || 'General'})</span><span>${new Date(m.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                        <div class="meta"><span><b>${m.username}</b>${targetInfo}</span><span>${new Date(m.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
                         <div>${m.message}</div>
                         ${requestHtml}
                     `;
@@ -665,19 +684,20 @@
             }
         }
 
-        async function sendChatMessage() {
+        async function sendFloatingChatMessage() {
             const message = document.getElementById('chatMessageInput').value.trim();
             const target_direction_id = document.getElementById('chatTargetDir').value || null;
+            const target_user_id = document.getElementById('chatTargetUser').value || null;
             const is_request = document.getElementById('chatIsRequest').checked;
             const item_description = document.getElementById('chatItemDesc').value.trim();
             const quantity = parseFloat(document.getElementById('chatItemQty').value);
 
             if (!message && !is_request) return;
             if (is_request && (!item_description || isNaN(quantity))) {
-                return alert('Para solicitar apoyo, indique la descripción del equipo y la cantidad.');
+                return alert('Para solicitar apoyo, indique la descripción y cantidad del equipo.');
             }
 
-            const body = { target_direction_id, message: message || 'Solicitud de apoyo de inventario', is_request, item_description, quantity };
+            const body = { target_direction_id, target_user_id, message: message || 'Solicitud de apoyo de inventario', is_request, item_description, quantity };
             
             const res = await fetch('/api/messages', {
                 method: 'POST',
@@ -786,7 +806,7 @@
                 quantity: parseFloat(document.getElementById('purchaseQty').value),
                 estimated_price: parseFloat(document.getElementById('purchasePrice').value) || 0
             };
-            if(!body.item_description || isNaN(body.quantity)) return alert('Complete la descripción y cantidad');
+            if(!body.item_description || isNaN(body.quantity)) return alert('Complete descripción y cantidad');
             const res = await fetch('/api/purchase-requests', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
             const data = await res.json();
             alert(data.message || data.error);
@@ -797,7 +817,7 @@
         }
 
         async function returnPurchase(id) {
-            const notes = prompt('Ingrese la observación o motivo de la devolución al usuario:');
+            const notes = prompt('Motivo de devolución:');
             if(notes === null) return;
             const res = await fetch(`/api/purchase-requests/${id}/return`, {
                 method: 'POST',
@@ -818,7 +838,7 @@
 
         function openReportModal(loanId) {
             const l = allLoansCache.find(x => x.id === loanId);
-            if(!l) return alert('No se encontró el préstamo');
+            if(!l) return alert('No encontrado');
             const content = `
                 <div style="text-align:center; border-bottom:2px solid var(--border-color); padding-bottom:15px; margin-bottom:20px;">
                     <h3 style="margin:0;">REPÚBLICA BOLIVARIANA DE VENEZUELA</h3>
@@ -846,7 +866,7 @@
             loadAllData();
         }
         async function deleteDirection(id) {
-            if(!confirm('¿Eliminar dirección?')) return;
+            if(!confirm('¿Eliminar unidad?')) return;
             await fetch(`/api/directions/${id}`, { method: 'DELETE', headers: getHeaders() });
             loadAllData();
         }
