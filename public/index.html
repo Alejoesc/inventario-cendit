@@ -25,12 +25,12 @@
     <aside>
         <div class="brand-header">CENDIT C.I.</div>
         <ul class="sidebar-menu">
-            <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel de Control</a></li>
-            <li onclick="switchView('inventory', this)"><a href="#">📦 Stock Inteligente</a></li>
-            <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos y Fechas</a></li>
-            <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades / Direcciones</a></li>
-            <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Gestión de Accesos</a></li>
-            <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Cerrar Sesión</a></li>
+            <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel</a></li>
+            <li onclick="switchView('inventory', this)"><a href="#">📦 Stock</a></li>
+            <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos</a></li>
+            <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades</a></li>
+            <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Accesos</a></li>
+            <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Salir</a></li>
         </ul>
     </aside>
 
@@ -76,7 +76,7 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>El sistema detecta automáticamente umbrales críticos de reposición (≤100 metros para bobinas de fibra/UTP y ≤10 unidades para equipos generales). Administre asignaciones con fecha de retorno o bajas definitivas.</p>
+                    <p>Gestión automatizada con umbrales inteligentes, control de emisor bloqueado al usuario activo, aprobación requerida por supervisor y diseño adaptativo para cualquier dispositivo.</p>
                 </div>
             </div>
 
@@ -86,7 +86,7 @@
                     <h3>Registrar Nuevo Artículo o Bobina</h3>
                     <div class="form-row">
                         <select id="itemDirSelect"></select>
-                        <input type="text" id="desc" placeholder="Descripción (Ej: Bobina UTP Cat6 / Patch Cord)">
+                        <input type="text" id="desc" placeholder="Descripción (Ej: Bobina UTP / Unidad de Fotónica)">
                         <input type="text" id="assetNum" placeholder="N° Bien Nacional (Opcional)">
                     </div>
                     <div class="form-row">
@@ -101,39 +101,43 @@
 
                 <div class="box">
                     <h3>Stock General e Identificación de Umbrales</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Dirección</th>
-                                <th>Descripción</th>
-                                <th>N° Bien Nacional</th>
-                                <th>Tipo Medida</th>
-                                <th>Stock Actual</th>
-                                <th>Estado de Stock</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventoryTable"></tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Dirección</th>
+                                    <th>Descripción</th>
+                                    <th>N° Bien Nacional</th>
+                                    <th>Tipo Medida</th>
+                                    <th>Stock Actual</th>
+                                    <th>Estado de Stock</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTable"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
             <!-- VISTA 3: PRÉSTAMOS -->
             <div id="view-loans" class="view-section">
                 <div class="box">
-                    <h3>Registrar Préstamo o Asignación Inter-Unidades</h3>
+                    <h3>Registrar Solicitud de Préstamo (Requiere Aprobación de Supervisor)</h3>
                     <div class="form-row">
                         <select id="loanItemSelect"></select>
                         <select id="targetDirSelect"></select>
                         
-                        <!-- Búsqueda inteligente por Nombre o Cédula (Emisor) -->
+                        <!-- Emisor Bloqueado automáticamente al usuario logueado -->
                         <div>
-                            <input type="text" id="senderRespInput" list="usersList" placeholder="Emisor (Escriba nombre o cédula)...">
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Emisor (Usuario Actual):</label>
+                            <input type="text" id="senderLockedInput" readonly>
                         </div>
                         
-                        <!-- Búsqueda inteligente por Nombre o Cédula (Receptor) -->
+                        <!-- Receptor (Seleccionado del sistema) -->
                         <div>
-                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Receptor (Escriba nombre o cédula)...">
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Receptor Autorizado:</label>
+                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Escriba nombre o cédula...">
                         </div>
                         <datalist id="usersList"></datalist>
                     </div>
@@ -150,26 +154,28 @@
                                 <option value="NO">No volverá / Asignación Definitiva</option>
                             </select>
                         </div>
-                        <button onclick="createLoan()" style="align-self: flex-end;">Procesar Operación</button>
+                        <button onclick="createLoan()" style="align-self: flex-end;">Enviar Solicitud</button>
                     </div>
                 </div>
 
                 <div class="box">
-                    <h3>Control de Préstamos, Fechas y Retornos</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Artículo</th>
-                                <th>Origen ➔ Destino</th>
-                                <th>Cant.</th>
-                                <th>Fecha Regreso / Tipo</th>
-                                <th>Estado</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="loansTable"></tbody>
-                    </table>
+                    <h3>Control de Préstamos, Aprobaciones y Retornos</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Artículo</th>
+                                    <th>Origen ➔ Destino</th>
+                                    <th>Cant.</th>
+                                    <th>Fecha / Tipo</th>
+                                    <th>Estado</th>
+                                    <th>Acción (Supervisor / Cierre)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loansTable"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -178,18 +184,20 @@
                 <div class="box" id="addDirBox" style="display:none;">
                     <h3>Gestión de Direcciones y Unidades CENDIT</h3>
                     <div class="form-row">
-                        <input type="text" id="newDirName" placeholder="Nombre de la nueva unidad">
+                        <input type="text" id="newDirName" placeholder="Nombre de la nueva unidad (Ej: Almacén DDI)">
                         <button onclick="addDirection()">Crear Dirección</button>
                     </div>
                 </div>
                 <div class="box">
                     <h3>Unidades Organizacionales Registradas</h3>
-                    <table>
-                        <thead>
-                            <tr><th>ID</th><th>Nombre de la Unidad</th><th id="dirActionHeader" style="display:none;">Acciones</th></tr>
-                        </thead>
-                        <tbody id="directionsTable"></tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Nombre de la Unidad</th><th id="dirActionHeader" style="display:none;">Acciones</th></tr>
+                            </thead>
+                            <tbody id="directionsTable"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -203,19 +211,21 @@
                         <input type="password" id="newPassword" placeholder="Contraseña">
                         <select id="newRole">
                             <option value="Operador">Operador</option>
-                            <option value="Administrador">Administrador</option>
+                            <option value="Administrador">Supervisor / Administrador</option>
                         </select>
                         <button onclick="createUser()">Registrar Usuario</button>
                     </div>
                 </div>
                 <div class="box">
                     <h3>Usuarios Autorizados</h3>
-                    <table>
-                        <thead>
-                            <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Rol</th><th>Acciones</th></tr>
-                        </thead>
-                        <tbody id="usersTable"></tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Rol</th><th>Acciones</th></tr>
+                            </thead>
+                            <tbody id="usersTable"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </main>
@@ -290,6 +300,7 @@
 
         function initSession() {
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
+            document.getElementById('senderLockedInput').value = currentUser; // Bloquea el emisor al usuario actual
             if (currentRole === 'Administrador') {
                 document.getElementById('menuUsers').style.display = 'block';
                 document.getElementById('addItemBox').style.display = 'block';
@@ -337,7 +348,6 @@
                     targetDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
                 });
 
-                // Autocompletado inteligente por Nombre o Cédula en el datalist
                 const usersList = document.getElementById('usersList');
                 usersList.innerHTML = '';
                 users.forEach(u => {
@@ -395,9 +405,30 @@
                 const loansTable = document.getElementById('loansTable');
                 loansTable.innerHTML = '';
                 loans.forEach(l => {
+                    let statusBadge = '<span class="badge badge-yellow">PENDIENTE</span>';
+                    if (l.status === 'ACTIVO') statusBadge = '<span class="badge badge-red">ACTIVO</span>';
+                    if (l.status === 'DEVUELTO') statusBadge = '<span class="badge badge-green">DEVUELTO</span>';
+                    if (l.status === 'RECHAZADO') statusBadge = '<span class="badge badge-red">RECHAZADO</span>';
+
                     const returnStatusBadge = l.is_returnable === 'SI' 
                         ? `<span style="color:#059669; font-weight:600;">Regresa: ${l.return_date}</span>` 
                         : `<span style="color:#ef4444; font-weight:600;">No volverá (Definitivo)</span>`;
+
+                    let actionButtons = '';
+                    if (l.status === 'PENDIENTE') {
+                        if (currentRole === 'Administrador') {
+                            actionButtons = `
+                                <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-right: 5px;">Aprobar</button>
+                                <button class="btn-danger" onclick="rejectLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Rechazar</button>
+                            `;
+                        } else {
+                            actionButtons = '<span style="font-size:0.8rem; color:var(--text-secondary);">Esperando Supervisor</span>';
+                        }
+                    } else if (l.status === 'ACTIVO') {
+                        actionButtons = `<button class="btn-warning" onclick="returnLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Cerrar / Devolver</button>`;
+                    } else {
+                        actionButtons = 'Finalizado';
+                    }
 
                     loansTable.innerHTML += `
                         <tr>
@@ -406,8 +437,8 @@
                             <td>${l.source_direction_name} (${l.sender_responsible}) ➔ <br>${l.target_direction_name} (${l.receiver_responsible})</td>
                             <td><b>${l.quantity}</b></td>
                             <td>${returnStatusBadge}</td>
-                            <td><span class="badge ${l.status === 'ACTIVO' ? 'badge-red' : 'badge-green'}">${l.status}</span></td>
-                            <td>${l.status === 'ACTIVO' ? `<button class="btn-warning" onclick="returnLoan(${l.id})">Cerrar</button>` : 'Completado'}</td>
+                            <td>${statusBadge}</td>
+                            <td>${actionButtons}</td>
                         </tr>
                     `;
                 });
@@ -468,19 +499,34 @@
             const body = {
                 item_id: document.getElementById('loanItemSelect').value,
                 target_direction_id: document.getElementById('targetDirSelect').value,
-                sender_responsible: document.getElementById('senderRespInput').value,
                 receiver_responsible: document.getElementById('receiverRespInput').value,
                 quantity: parseFloat(document.getElementById('loanQty').value),
                 return_date: document.getElementById('returnDate').value,
                 is_returnable: document.getElementById('isReturnableSelect').value
             };
-            if(!body.item_id || !body.target_direction_id || !body.sender_responsible || !body.receiver_responsible || isNaN(body.quantity)) {
-                return alert('Por favor complete todos los campos obligatorios de usuarios, artículo y cantidades.');
+            if(!body.item_id || !body.target_direction_id || !body.receiver_responsible || isNaN(body.quantity)) {
+                return alert('Por favor complete todos los campos obligatorios.');
             }
             if(body.is_returnable === 'SI' && !body.return_date) {
-                return alert('Por favor indique la fecha estimada de regreso para el préstamo temporal.');
+                return alert('Por favor indique la fecha estimada de regreso.');
             }
             const res = await fetch('/api/loans', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function approveLoan(id) {
+            if(!confirm('¿Aprobar esta solicitud de préstamo y descontar stock?')) return;
+            const res = await fetch(`/api/loans/${id}/approve`, { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function rejectLoan(id) {
+            if(!confirm('¿Rechazar esta solicitud?')) return;
+            const res = await fetch(`/api/loans/${id}/reject`, { method: 'POST', headers: getHeaders() });
             const data = await res.json();
             alert(data.message || data.error);
             loadAllData();

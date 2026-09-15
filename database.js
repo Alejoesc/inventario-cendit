@@ -5,7 +5,6 @@ const db = new sqlite3.Database('./cendit_fotonica.db', (err) => {
 });
 
 db.serialize(() => {
-  // Tabla de Usuarios con Cédula
   db.run(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
@@ -13,7 +12,6 @@ db.serialize(() => {
     password TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'Operador'
   )`, () => {
-    // Migración segura si la tabla ya existía sin columna cédula
     db.run(`ALTER TABLE users ADD COLUMN cedula TEXT`, (err) => {});
     db.run(`INSERT OR IGNORE INTO users (id, username, cedula, password, role) VALUES (1, 'admin', 'V-00000000', 'admin123', 'Administrador')`);
   });
@@ -28,7 +26,9 @@ db.serialize(() => {
           'Dirección Ejecutiva',
           'Dirección de Tecnologías',
           'Unidad de Telemática',
-          'Laboratorio de Fotónica'
+          'Unidad de Fotónica',
+          'Almacén DDI',
+          'Almacén de Electrónica'
         ];
         const stmt = db.prepare(`INSERT INTO directions (name) VALUES (?)`);
         defaultDirs.forEach(dir => stmt.run(dir));
@@ -47,7 +47,6 @@ db.serialize(() => {
     FOREIGN KEY(direction_id) REFERENCES directions(id) ON DELETE SET NULL
   )`);
 
-  // Tabla de Préstamos con soporte garantizado para fechas y estatus de retorno
   db.run(`CREATE TABLE IF NOT EXISTS loans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER,
@@ -58,7 +57,7 @@ db.serialize(() => {
     quantity REAL NOT NULL,
     return_date TEXT,
     is_returnable TEXT NOT NULL DEFAULT 'SI',
-    status TEXT DEFAULT 'ACTIVO',
+    status TEXT DEFAULT 'PENDIENTE',
     date TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(item_id) REFERENCES items(id),
     FOREIGN KEY(source_direction_id) REFERENCES directions(id),

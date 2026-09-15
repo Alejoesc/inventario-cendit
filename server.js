@@ -18,7 +18,7 @@ function authMiddleware(req, res, next) {
 
 function adminMiddleware(req, res, next) {
   if (!req.user || req.user.role !== 'Administrador') {
-    return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de Administrador.' });
+    return res.status(403).json({ error: 'Acceso denegado: Se requiere rol de Supervisor / Administrador.' });
   }
   next();
 }
@@ -117,8 +117,11 @@ app.get('/api/loans', authMiddleware, (req, res) => {
   });
 });
 
+// Crear préstamo (queda PENDIENTE de aprobación por supervisor y descuenta stock al aprobarse)
 app.post('/api/loans', authMiddleware, (req, res) => {
-  const { item_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable } = req.body;
+  const { item_id, target_direction_id, receiver_responsible, quantity, return_date, is_returnable } = req.body;
+  const sender_responsible = req.user.username; // Emisor bloqueado al usuario logueado
+
   db.get(`SELECT * FROM items WHERE id = ?`, [item_id], (err, item) => {
     if (err || !item) return res.status(404).json({ error: 'Artículo no encontrado' });
     if (item.quantity < quantity) return res.status(400).json({ error: 'Stock insuficiente' });
@@ -126,28 +129,55 @@ app.post('/api/loans', authMiddleware, (req, res) => {
     const finalIsReturnable = is_returnable === 'SI' ? 'SI' : 'NO';
     const finalReturnDate = finalIsReturnable === 'SI' ? (return_date || 'Sin fecha') : 'No aplica';
 
-    db.serialize(() => {
-      db.run(`BEGIN TRANSACTION`);
-      db.run(`UPDATE items SET quantity = quantity - ? WHERE id = ?`, [quantity, item_id]);
-      db.run(
-        `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVO')`,
-        [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable],
-        (err) => {
+    db.run(
+      `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')`,
+      [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable],
+      (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación por el supervisor.' });
+      }
+    );
+  });
+});
+
+// Aprobar préstamo (Solo Supervisor/Admin) -> Descuenta stock y pasa a ACTIVO
+app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, (req, res) => {
+  db.get(`SELECT * FROM loans WHERE id = ? AND status = 'PENDIENTE'`, [req.params.id], (err, loan) => {
+    if (err || !loan) return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
+
+    db.get(`SELECT * FROM items WHERE id = ?`, [loan.item_id], (err, item) => {
+      if (err || !item || item.quantity < loan.quantity) {
+        return res.status(400).json({ error: 'Stock insuficiente para aprobar esta solicitud' });
+      }
+
+      db.serialize(() => {
+        db.run(`BEGIN TRANSACTION`);
+        db.run(`UPDATE items SET quantity = quantity - ? WHERE id = ?`, [loan.quantity, loan.item_id]);
+        db.run(`UPDATE loans SET status = 'ACTIVO' WHERE id = ?`, [req.params.id], (err) => {
           if (err) {
             db.run(`ROLLBACK`);
             return res.status(500).json({ error: err.message });
           }
           db.run(`COMMIT`);
-          res.json({ message: 'Préstamo registrado exitosamente' });
-        }
-      );
+          res.json({ message: 'Préstamo aprobado y stock descontado exitosamente' });
+        });
+      });
     });
   });
 });
 
+// Rechazar préstamo (Solo Supervisor/Admin)
+app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, (req, res) => {
+  db.run(`UPDATE loans SET status = 'RECHAZADO' WHERE id = ? AND status = 'PENDIENTE'`, [req.params.id], function(err) {
+    if (err || this.changes === 0) return res.status(400).json({ error: 'No se pudo rechazar la solicitud' });
+    res.json({ message: 'Solicitud de préstamo rechazada.' });
+  });
+});
+
+// Devolver préstamo / Cerrar ciclo
 app.post('/api/loans/:id/return', authMiddleware, (req, res) => {
   db.get(`SELECT * FROM loans WHERE id = ? AND status = 'ACTIVO'`, [req.params.id], (err, loan) => {
-    if (err || !loan) return res.status(404).json({ error: 'Préstamo no encontrado' });
+    if (err || !loan) return res.status(404).json({ error: 'Préstamo activo no encontrado' });
 
     db.serialize(() => {
       db.run(`BEGIN TRANSACTION`);
