@@ -125,11 +125,11 @@ main { padding: 20px; overflow-y: auto; flex: 1; }
 .box h3 { margin-top: 0; font-size: 1.05rem; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 20px; }
 
 .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 15px; }
-input, select {
+input, select, textarea {
     padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 8px; width: 100%; font-size: 0.9rem;
-    background: var(--input-bg); color: var(--text-main); transition: border-color 0.2s;
+    background: var(--input-bg); color: var(--text-main); transition: border-color 0.2s; font-family: inherit;
 }
-input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
 input[readonly] { background-color: rgba(0,0,0,0.04); cursor: not-allowed; color: var(--text-secondary); }
 
 button {
@@ -144,7 +144,17 @@ button:hover { background: var(--accent-hover); }
 .btn-info { background: #3b82f6; }
 .btn-info:hover { background: #2563eb; }
 
-/* ESTILOS PROFESIONALES PARA EL SELECTOR FLOTANTE DE RECEPTOR */
+/* ESTILOS DEL CHAT INTEGRADO */
+.chat-container { display: flex; flex-direction: column; height: 550px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--card-bg); overflow: hidden; }
+.chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: var(--bg-app); }
+.chat-bubble { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; position: relative; }
+.chat-bubble.mine { align-self: flex-end; background: var(--accent); color: white; border-bottom-right-radius: 2px; }
+.chat-bubble.theirs { align-self: flex-start; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border-color); border-bottom-left-radius: 2px; }
+.chat-bubble .meta { font-size: 0.72rem; opacity: 0.8; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 10px; }
+.request-card-chat { margin-top: 8px; padding: 10px; background: rgba(0,0,0,0.06); border-radius: 8px; border-left: 4px solid var(--accent); }
+.chat-input-area { padding: 15px; background: var(--card-bg); border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; }
+
+/* SELECTOR ESTILIZADO DE RECEPTOR */
 .custom-select-wrapper { position: relative; width: 100%; }
 .custom-dropdown-list {
     position: absolute; top: 100%; left: 0; right: 0; max-height: 240px; overflow-y: auto;
@@ -171,7 +181,6 @@ tr:hover td { background: rgba(0,0,0,0.02); }
 .badge-green { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 .badge-yellow { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
 
-/* DISEÑO RESPONSIVO AVANZADO PARA TABLETS Y TELÉFONOS */
 @media(max-width: 900px) {
     body { flex-direction: column; height: 100vh; overflow: auto; }
     aside { width: 100%; height: auto; flex-shrink: 0; border-right: none; border-bottom: 1px solid var(--border-color); }

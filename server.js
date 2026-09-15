@@ -332,5 +332,91 @@ app.post('/api/purchase-requests/:id/approve', authMiddleware, adminMiddleware, 
   }
 });
 
+// API DE CHAT Y SOLICITUDES INTERDEPARTAMENTALES
+app.get('/api/messages', authMiddleware, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT messages.*, users.username, users.role, directions.name as direction_name,
+             target_dir.name as target_direction_name
+      FROM messages
+      JOIN users ON messages.sender_id = users.id
+      LEFT JOIN directions ON users.direction_id = directions.id
+      LEFT JOIN directions target_dir ON messages.target_direction_id = target_dir.id
+      ORDER BY messages.date ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/messages', authMiddleware, async (req, res) => {
+  const { target_direction_id, message, is_request, item_description, quantity } = req.body;
+  try {
+    await db.query(
+      `INSERT INTO messages (sender_id, target_direction_id, message, is_request, item_description, quantity, status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        req.user.id, 
+        target_direction_id || null, 
+        message, 
+        is_request || false, 
+        item_description || null, 
+        quantity || null, 
+        is_request ? 'PENDIENTE_UNIDAD' : 'APROBADO_UNIDAD'
+      ]
+    );
+    res.json({ message: 'Mensaje enviado con éxito' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Visto bueno de la unidad receptora
+app.post('/api/messages/:id/approve-unit', authMiddleware, async (req, res) => {
+  try {
+    const msgRes = await db.query('SELECT * FROM messages WHERE id = $1', [req.params.id]);
+    if (msgRes.rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    const msg = msgRes.rows[0];
+
+    // Verificar si el usuario pertenece a la unidad destino o es Administrador
+    if (req.user.role !== 'Administrador' && req.user.direction_id !== msg.target_direction_id) {
+      return res.status(403).json({ error: 'Solo personal de la unidad receptora puede dar el visto bueno.' });
+    }
+
+    await db.query("UPDATE messages SET status = 'APROBADO_UNIDAD' WHERE id = $1", [req.params.id]);
+    res.json({ message: 'Visto bueno otorgado por la unidad.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Aprobación de supervisor / administrador (Escalamiento o aprobación directa)
+app.post('/api/messages/:id/approve-supervisor', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await db.query("UPDATE messages SET status = 'APROBADO_SUPERVISOR' WHERE id = $1", [req.params.id]);
+    res.json({ message: 'Solicitud aprobada por Supervisor / Administrador.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/messages/:id/reject', authMiddleware, async (req, res) => {
+  try {
+    const msgRes = await db.query('SELECT * FROM messages WHERE id = $1', [req.params.id]);
+    if (msgRes.rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    const msg = msgRes.rows[0];
+
+    if (req.user.role !== 'Administrador' && req.user.direction_id !== msg.target_direction_id) {
+      return res.status(403).json({ error: 'No autorizado para rechazar esta solicitud.' });
+    }
+
+    await db.query("UPDATE messages SET status = 'RECHAZADO' WHERE id = $1", [req.params.id]);
+    res.json({ message: 'Solicitud rechazada.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor activo en puerto ${PORT}`));

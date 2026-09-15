@@ -28,7 +28,6 @@ async function initDB() {
       );
     `);
 
-    // Asegurar compatibilidad si la tabla ya existía sin email
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;`);
 
     await pool.query(`
@@ -71,6 +70,21 @@ async function initDB() {
         estimated_price NUMERIC(12, 2) DEFAULT 0.00,
         status TEXT DEFAULT 'PENDIENTE',
         supervisor_notes TEXT,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // TABLA PARA EL CHAT INTEGRADO Y SOLICITUDES DE APOYO
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INTEGER REFERENCES users(id),
+        target_direction_id INTEGER REFERENCES directions(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        is_request BOOLEAN DEFAULT FALSE,
+        item_description TEXT,
+        quantity REAL,
+        status TEXT DEFAULT 'PENDIENTE_UNIDAD', -- PENDIENTE_UNIDAD, APROBADO_UNIDAD, APROBADO_SUPERVISOR, RECHAZADO
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
