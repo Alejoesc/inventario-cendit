@@ -15,6 +15,7 @@ db.serialize(() => {
     FOREIGN KEY(direction_id) REFERENCES directions(id) ON DELETE SET NULL
   )`, () => {
     db.run(`ALTER TABLE users ADD COLUMN direction_id INTEGER`, (err) => {});
+    // Usuario admin por defecto adscrito a la Unidad de Fotónica (ID 4) o Ejecutiva (ID 1)
     db.run(`INSERT OR IGNORE INTO users (id, username, cedula, password, role, direction_id) VALUES (1, 'admin', 'V-00000000', 'admin123', 'Administrador', 1)`);
   });
 

@@ -37,7 +37,7 @@
         <div class="brand-header">CENDIT C.I.</div>
         <ul class="sidebar-menu">
             <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel</a></li>
-            <li onclick="switchView('inventory', this)"><a href="#">📦 Stock</a></li>
+            <li onclick="switchView('inventory', this)"><a href="#">📦 Stock por Unidad</a></li>
             <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos</a></li>
             <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades</a></li>
             <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Accesos</a></li>
@@ -77,7 +77,7 @@
                     </div>
                     <div class="metric-card">
                         <p class="metric-number" id="statItems">0</p>
-                        <p class="metric-label">Artículos Registrados</p>
+                        <p class="metric-label">Artículos de tu Unidad</p>
                     </div>
                     <div class="metric-card">
                         <p class="metric-number" id="statLoans">0</p>
@@ -87,17 +87,17 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Gestión automatizada de inventario institucional con generación de planillas oficiales para firmas y trazabilidad completa por usuario y unidad.</p>
+                    <p>Cada unidad opera de forma independiente y aislada sobre su propio inventario de fotónica, UTP o equipos. Aprobación por supervisor y planillas de firmas integradas.</p>
                 </div>
             </div>
 
             <!-- VISTA 2: INVENTARIO -->
             <div id="view-inventory" class="view-section">
                 <div class="box" id="addItemBox" style="display:none;">
-                    <h3>Registrar Nuevo Artículo o Bobina</h3>
+                    <h3>Registrar Nuevo Artículo o Bobina en tu Unidad</h3>
                     <div class="form-row">
                         <select id="itemDirSelect"></select>
-                        <input type="text" id="desc" placeholder="Descripción (Ej: Bobina UTP / Unidad de Fotónica)">
+                        <input type="text" id="desc" placeholder="Descripción (Ej: Bobina UTP / Fotónica)">
                         <input type="text" id="assetNum" placeholder="N° Bien Nacional (Opcional)">
                     </div>
                     <div class="form-row">
@@ -111,18 +111,18 @@
                 </div>
 
                 <div class="box">
-                    <h3>Stock General e Identificación de Umbrales</h3>
+                    <h3>Inventario Exclusivo de tu Unidad</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
                                     <th>ID</th>
-                                    <th>Dirección</th>
+                                    <th>Dirección / Unidad</th>
                                     <th>Descripción</th>
                                     <th>N° Bien Nacional</th>
                                     <th>Tipo Medida</th>
                                     <th>Stock Actual</th>
-                                    <th>Estado de Stock</th>
+                                    <th>Estado</th>
                                 </tr>
                             </thead>
                             <tbody id="inventoryTable"></tbody>
@@ -139,13 +139,11 @@
                         <select id="loanItemSelect"></select>
                         <select id="targetDirSelect"></select>
                         
-                        <!-- Emisor Bloqueado al usuario logueado -->
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Emisor (Usuario Actual):</label>
                             <input type="text" id="senderLockedInput" readonly>
                         </div>
                         
-                        <!-- Receptor (Muestra nombre, cédula y unidad) -->
                         <div>
                             <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Receptor Autorizado:</label>
                             <input type="text" id="receiverRespInput" list="usersList" placeholder="Escriba nombre, cédula o unidad...">
@@ -170,14 +168,14 @@
                 </div>
 
                 <div class="box">
-                    <h3>Control de Préstamos, Aprobaciones y Reportes</h3>
+                    <h3>Control de Préstamos y Reportes</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
                                     <th>ID</th>
                                     <th>Artículo</th>
-                                    <th>Reporte de Emisión ➔ Destino</th>
+                                    <th>Reporte Emisor ➔ Destino</th>
                                     <th>Cant.</th>
                                     <th>Fecha / Tipo</th>
                                     <th>Estado</th>
@@ -368,7 +366,6 @@
                     newUserDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
                 });
 
-                // Autocompletar mostrando Nombre, Cédula y Unidad
                 const usersList = document.getElementById('usersList');
                 usersList.innerHTML = '';
                 users.forEach(u => {
@@ -457,7 +454,6 @@
                         actionButtons = 'Finalizado';
                     }
 
-                    // Reporte visual de quién hizo el préstamo y la unidad
                     const reportHtml = `
                         <b>Emisor:</b> ${l.sender_responsible} <br>
                         <small style="color:var(--text-secondary);">📁 ${l.sender_direction_name || 'Unidad Principal'}</small><br>
@@ -498,7 +494,6 @@
             }
         }
 
-        // Generar Planilla / Acta de Préstamo oficial para firmas
         function openReportModal(loanId) {
             const l = allLoansCache.find(x => x.id === loanId);
             if(!l) return alert('No se encontró la información del préstamo');

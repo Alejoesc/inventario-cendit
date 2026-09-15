@@ -165,7 +165,6 @@ tr:hover td { background: rgba(0,0,0,0.02); }
     main { padding: 15px; }
 }
 
-/* Estilos de impresión para la planillita oficial */
 @media print {
     body * { visibility: hidden; }
     #reportModal, #reportModal * { visibility: visible; }

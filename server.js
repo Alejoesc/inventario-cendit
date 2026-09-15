@@ -85,12 +85,21 @@ app.delete('/api/directions/:id', authMiddleware, adminMiddleware, (req, res) =>
   });
 });
 
+// AISLAMIENTO DE INVENTARIO: Operadores solo ven su unidad, Administrador ve todo
 app.get('/api/items', authMiddleware, (req, res) => {
-  db.all(`
+  let query = `
     SELECT items.*, directions.name as direction_name 
     FROM items 
     LEFT JOIN directions ON items.direction_id = directions.id
-  `, [], (err, rows) => {
+  `;
+  let params = [];
+
+  if (req.user.role !== 'Administrador') {
+    query += ` WHERE items.direction_id = ?`;
+    params.push(req.user.direction_id);
+  }
+
+  db.all(query, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     const items = rows.map(i => {
       const threshold = i.unit_type === 'metros' ? 100 : 10;
@@ -101,7 +110,13 @@ app.get('/api/items', authMiddleware, (req, res) => {
 });
 
 app.post('/api/items', authMiddleware, (req, res) => {
-  const { direction_id, description, national_asset_number, unit_type, quantity } = req.body;
+  let { direction_id, description, national_asset_number, unit_type, quantity } = req.body;
+  
+  // Si es operador, se registra automáticamente en su propia unidad
+  if (req.user.role !== 'Administrador') {
+    direction_id = req.user.direction_id;
+  }
+
   db.run(
     `INSERT INTO items (direction_id, description, national_asset_number, unit_type, quantity) VALUES (?, ?, ?, ?, ?)`,
     [direction_id, description, national_asset_number || null, unit_type || 'unidades', quantity],
@@ -112,9 +127,9 @@ app.post('/api/items', authMiddleware, (req, res) => {
   );
 });
 
-// Listado enriquecido de préstamos con información de unidades y cédulas de emisor/receptor
+// Aislamiento de préstamos por unidad
 app.get('/api/loans', authMiddleware, (req, res) => {
-  db.all(`
+  let query = `
     SELECT loans.*, 
            items.description as item_name, 
            items.national_asset_number,
@@ -133,7 +148,15 @@ app.get('/api/loans', authMiddleware, (req, res) => {
     LEFT JOIN directions du1 ON u1.direction_id = du1.id
     LEFT JOIN users u2 ON loans.receiver_responsible = u2.username
     LEFT JOIN directions du2 ON u2.direction_id = du2.id
-  `, [], (err, rows) => {
+  `;
+  let params = [];
+
+  if (req.user.role !== 'Administrador') {
+    query += ` WHERE loans.source_direction_id = ? OR loans.target_direction_id = ?`;
+    params.push(req.user.direction_id, req.user.direction_id);
+  }
+
+  db.all(query, params, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
