@@ -55,8 +55,8 @@
                 <label for="chatIsRequest" style="cursor:pointer; font-weight:500;">Solicitar Apoyo de Material</label>
             </div>
             <div id="chatRequestInputs" style="display:none; grid-template-columns: 2fr 1fr; gap:6px;">
-                <input type="text" id="chatItemDesc" placeholder="Descripción del equipo" style="font-size:0.8rem; padding:6px;">
-                <input type="number" id="chatItemQty" placeholder="Cant." style="font-size:0.8rem; padding:6px;" step="any">
+                <input type="text" id="chatItemDesc" placeholder="Descripción del equipo, fibra o cable" style="font-size:0.8rem; padding:6px;">
+                <input type="number" id="chatItemQty" placeholder="Cant. / Metros" style="font-size:0.8rem; padding:6px;" step="any">
             </div>
             <div style="display:flex; gap:6px;">
                 <input type="text" id="chatMessageInput" placeholder="Escribe un mensaje..." style="font-size:0.85rem; padding:8px;" onkeypress="if(event.key === 'Enter') sendFloatingChatMessage()">
@@ -121,23 +121,23 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Las solicitudes de apoyo en el chat, al ser aprobadas por un supervisor o administrador, despliegan automáticamente los artículos coincidentes en inventario para préstamo o los envían a cotización de compra si no hay existencia.</p>
+                    <p>Gestión de equipos con Bien Nacional, cantidad o metros de cable/fibra. Préstamos filtrados por la unidad de pertenencia del usuario y chat integrado con despacho automático de inventario o solicitud de compra.</p>
                 </div>
             </div>
 
             <!-- VISTA 2: INVENTARIO -->
             <div id="view-inventory" class="view-section">
                 <div class="box" id="addItemBox" style="display:none;">
-                    <h3>Registrar Material (Asignado a Usuario y Proyecto con Precio)</h3>
+                    <h3>Registrar Material (Equipo, Cantidad o Metros de Cable/Fibra)</h3>
                     <div class="form-row">
                         <select id="itemDirSelect"></select>
-                        <input type="text" id="desc" placeholder="Descripción del Material">
-                        <input type="text" id="assetNum" placeholder="N° Bien Nacional (Opcional)">
+                        <input type="text" id="desc" placeholder="Descripción (Ej: Cable UTP Cat6, Router Cisco, Fibra Monomodo)">
+                        <input type="text" id="assetNum" placeholder="N° Bien Nacional (Si aplica)">
                     </div>
                     <div class="form-row">
                         <select id="unitTypeSelect">
-                            <option value="metros">Metros (Bobinas / UTP / Fibra - Alerta ≤ 100m)</option>
-                            <option value="unidades">Unidades / Cantidad (Equipos - Alerta ≤ 10u)</option>
+                            <option value="unidades">Unidades / Piezas</option>
+                            <option value="metros">Metros (Cable UTP / Fibra Óptica)</option>
                         </select>
                         <input type="number" id="qty" placeholder="Cantidad o Metros" step="any">
                         <input type="number" id="itemPrice" placeholder="Precio Unitario ($)" step="any">
@@ -150,7 +150,7 @@
                 </div>
 
                 <div class="box">
-                    <h3>Inventario Exclusivo y Asignaciones</h3>
+                    <h3>Inventario por Tipo (Equipos, Materiales y Metros)</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
@@ -161,7 +161,7 @@
                                     <th>Bien Nacional</th>
                                     <th>Asignado a</th>
                                     <th>Precio ($)</th>
-                                    <th>Stock</th>
+                                    <th>Stock / Medida</th>
                                     <th>Estado</th>
                                 </tr>
                             </thead>
@@ -174,7 +174,7 @@
             <!-- VISTA 3: PRÉSTAMOS -->
             <div id="view-loans" class="view-section">
                 <div class="box">
-                    <h3>Registrar Solicitud de Préstamo (Aprobación de Supervisor)</h3>
+                    <h3>Registrar Solicitud de Préstamo (Filtrado por tu Unidad)</h3>
                     <div class="form-row">
                         <select id="loanItemSelect"></select>
                         <select id="targetDirSelect"></select>
@@ -347,6 +347,7 @@
         let allUsersCache = [];
         let allDirectionsCache = [];
         let allItemsCache = [];
+        let loggedInUserData = null;
 
         document.documentElement.setAttribute('data-theme', currentTheme);
         updateThemeButtonText();
@@ -410,7 +411,13 @@
             location.reload();
         }
 
-        function initSession() {
+        async function initSession() {
+            try {
+                const userRes = await fetch('/api/users', { headers: getHeaders() });
+                const users = await userRes.json();
+                loggedInUserData = users.find(u => u.username === currentUser || u.cedula === currentUser);
+            } catch(e) {}
+
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
             document.getElementById('senderLockedInput').value = currentUser;
             document.getElementById('assignedUser').value = currentUser;
@@ -456,6 +463,10 @@
                 allLoansCache = await loanRes.json();
                 allUsersCache = await userRes.json();
                 allPurchasesCache = await purRes.json();
+
+                if (!loggedInUserData) {
+                    loggedInUserData = allUsersCache.find(u => u.username === currentUser);
+                }
 
                 document.getElementById('statUsers').innerText = allUsersCache.length;
                 document.getElementById('statDirs').innerText = allDirectionsCache.length;
@@ -512,25 +523,37 @@
                 });
 
                 const invTable = document.getElementById('inventoryTable');
-                const loanItemSelect = document.getElementById('loanItemSelect');
                 invTable.innerHTML = '';
-                loanItemSelect.innerHTML = '<option value="">Seleccione artículo para préstamo</option>';
                 allItemsCache.forEach(i => {
-                    const unitText = i.unit_type === 'metros' ? 'Metros (m)' : 'Unidades (u)';
+                    const unitText = i.unit_type === 'metros' ? `${i.quantity} Metros (m)` : `${i.quantity} Unidades (u)`;
+                    const assetInfo = i.national_asset_number ? `Bien: ${i.national_asset_number}` : 'Sin Bien Nacional';
                     invTable.innerHTML += `
                         <tr class="${i.alerta_reposicion ? 'alert-tr' : ''}">
                             <td>${i.id}</td>
                             <td>${i.direction_name || 'N/A'}</td>
                             <td><b>${i.description}</b><br><small style="color:var(--text-secondary);">Proyecto: ${i.project_name || 'General'}</small></td>
-                            <td>${i.national_asset_number || 'N/A'}</td>
+                            <td>${assetInfo}</td>
                             <td>👤 ${i.assigned_username || 'N/A'}</td>
                             <td>$${parseFloat(i.price || 0).toFixed(2)}</td>
-                            <td><b>${i.quantity}</b> ${unitText}</td>
+                            <td><b>${unitText}</b></td>
                             <td>${i.alerta_reposicion ? '<span class="badge badge-red">⚠️ REPOSICIÓN</span>' : '<span class="badge badge-green">Óptimo</span>'}</td>
                         </tr>
                     `;
+                });
+
+                // RESTRICCIÓN: Mostrar en préstamos solo los artículos de la unidad a la que pertenece el usuario (a menos que sea Admin o Supervisor)
+                const loanItemSelect = document.getElementById('loanItemSelect');
+                loanItemSelect.innerHTML = '<option value="">Seleccione artículo de tu unidad</option>';
+                
+                const userDirId = loggedInUserData ? loggedInUserData.direction_id : null;
+                const eligibleItems = (currentRole === 'Administrador' || currentRole === 'Supervisor') 
+                    ? allItemsCache 
+                    : allItemsCache.filter(i => i.direction_id === userDirId);
+
+                eligibleItems.forEach(i => {
                     if(i.quantity > 0) {
-                        loanItemSelect.innerHTML += `<option value="${i.id}">${i.description} [${i.direction_name}] (Disp: ${i.quantity})</option>`;
+                        const measure = i.unit_type === 'metros' ? 'm' : 'u';
+                        loanItemSelect.innerHTML += `<option value="${i.id}">${i.description} [${i.direction_name}] (Disp: ${i.quantity} ${measure})</option>`;
                     }
                 });
 
@@ -707,25 +730,23 @@
                             actionBtns += `<button class="btn-danger" onclick="rejectMessage(${m.id})" style="padding:3px 6px; font-size:0.7rem;">❌ Rechazar</button>`;
                         }
 
-                        // Si está aprobado, mostrar selector de inventario o botón de compra
                         let fulfillmentHtml = '';
                         if (m.status === 'APROBADO' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
-                            // Buscar items que coincidan
                             const matches = allItemsCache.filter(i => i.description.toLowerCase().includes((m.item_description || '').toLowerCase()) && i.quantity >= m.quantity);
                             
                             if (matches.length > 0) {
-                                let options = matches.map(i => `<option value="${i.id}">${i.description} [${i.direction_name}] (Disponibles: ${i.quantity})</option>`).join('');
+                                let options = matches.map(i => `<option value="${i.id}">${i.description} [${i.direction_name}] (Disp: ${i.quantity})</option>`).join('');
                                 fulfillmentHtml = `
                                     <div style="margin-top:8px; padding:6px; background:var(--card-bg); border-radius:6px;">
                                         <p style="font-size:0.75rem; margin:0 0 4px 0; color:var(--accent); font-weight:600;">📦 Hay existencia en inventario:</p>
                                         <select id="matchItem-${m.id}" style="font-size:0.75rem; padding:4px; margin-bottom:4px;">${options}</select>
-                                        <button class="btn-info" onclick="processChatLoan(${m.id})" style="padding:3px 8px; font-size:0.75rem; width:100%;">Procesar Préstamo (Descontar Stock)</button>
+                                        <button class="btn-info" onclick="processChatLoan(${m.id})" style="padding:3px 8px; font-size:0.75rem; width:100%;">Procesar Préstamo</button>
                                     </div>
                                 `;
                             } else {
                                 fulfillmentHtml = `
                                     <div style="margin-top:8px; padding:6px; background:var(--card-bg); border-radius:6px;">
-                                        <p style="font-size:0.75rem; margin:0 0 4px 0; color:#ef4444; font-weight:600;">⚠️ No hay existencia suficiente en stock.</p>
+                                        <p style="font-size:0.75rem; margin:0 0 4px 0; color:#ef4444; font-weight:600;">⚠️ No hay existencia en stock.</p>
                                         <button class="btn-warning" onclick="processChatPurchase(${m.id})" style="padding:3px 8px; font-size:0.75rem; width:100%;">🛒 Enviar a Cotización de Compra</button>
                                     </div>
                                 `;
@@ -734,7 +755,7 @@
 
                         requestHtml = `
                             <div class="request-card-chat">
-                                <p style="margin:0 0 4px 0;"><b>📦 Solicitud:</b> ${m.item_description} (Cant: <b>${m.quantity}</b>)</p>
+                                <p style="margin:0 0 4px 0;"><b>📦 Solicitud:</b> ${m.item_description} (Cant/Metros: <b>${m.quantity}</b>)</p>
                                 <p style="margin:0 0 6px 0;">Estado: ${statusBadge}</p>
                                 <div style="margin-bottom:4px;">${actionBtns}</div>
                                 ${fulfillmentHtml}
@@ -767,7 +788,7 @@
 
             if (!message && !is_request) return;
             if (is_request && (!item_description || isNaN(quantity))) {
-                return alert('Para solicitar apoyo, indique la descripción y cantidad del equipo.');
+                return alert('Para solicitar apoyo, indique la descripción y cantidad/metros.');
             }
 
             const body = { target_direction_id, target_user_id, message: message || 'Solicitud de apoyo de inventario', is_request, item_description, quantity };
@@ -935,8 +956,8 @@
                     <h4 style="color:var(--accent); margin:5px 0;">CENDIT - ACTA DE PRÉSTAMO / ASIGNACIÓN</h4>
                 </div>
                 <p><b>Comprobante:</b> #${l.id} | <b>Fecha:</b> ${l.date}</p>
-                <p><b>Emisor:</b> ${l.sender_responsible} ➔ <b>Receptor:</b> ${l.receiver_responsible}</p>
-                <p><b>Artículo:</b> ${l.item_name} | <b>Cantidad:</b> ${l.quantity} (${l.unit_type}) | <b>Precio:</b> $${l.price || 0}</p>
+                <p><b>Emisor (Prestó):</b> ${l.sender_responsible} | <b>Receptor:</b> ${l.receiver_responsible}</p>
+                <p><b>Artículo:</b> ${l.item_name} | <b>Cantidad/Metros:</b> ${l.quantity} (${l.unit_type}) | <b>Precio:</b> $${l.price || 0}</p>
                 <div style="margin-top:40px; display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; text-align:center; font-size:0.85rem;">
                     <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>ENTREGÓ</b></div>
                     <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>RECIBIÓ</b></div>

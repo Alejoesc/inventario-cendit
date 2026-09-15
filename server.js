@@ -10,7 +10,7 @@ async function authMiddleware(req, res, next) {
   if (!username) return res.status(401).json({ error: 'No autenticado' });
 
   try {
-    const result = await db.query('SELECT * FROM users WHERE username = $1 OR cedula = $1', [username]);
+    const result = await db.query('SELECT users.*, directions.name as direction_name FROM users LEFT JOIN directions ON users.direction_id = directions.id WHERE username = $1 OR cedula = $1', [username]);
     if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario no válido' });
     req.user = result.rows[0];
     next();
@@ -161,7 +161,7 @@ app.post('/api/items', authMiddleware, async (req, res) => {
       `INSERT INTO items (direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [direction_id, description, national_asset_number || null, unit_type || 'unidades', quantity, price || 0, project_name || 'General', assigned_username || req.user.username]
     );
-    await logAudit(req.user.username, 'REGISTRAR_MATERIAL', `Se registró el material: ${description} (Cant: ${quantity}).`);
+    await logAudit(req.user.username, 'REGISTRAR_MATERIAL', `Se registró el material: ${description} (Cant: ${quantity} ${unit_type}).`);
     res.json({ message: 'Artículo registrado y asignado correctamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -198,17 +198,105 @@ app.get('/api/loans', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
-  if (req.user.role === 'Usuario (Solo lectura)') return res.status(403).json({ error: 'Solo lectura.' });
-  const { item_description, quantity, estimated_price } = req.body;
+app.post('/api/loans', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') {
+    return res.status(403).json({ error: 'Usuario de solo lectura.' });
+  }
+  const { item_id, target_direction_id, receiver_responsible, quantity, return_date, is_returnable } = req.body;
+  const sender_responsible = req.user.username;
+
   try {
+    const itemRes = await db.query('SELECT * FROM items WHERE id = $1', [item_id]);
+    if (itemRes.rows.length === 0) return res.status(404).json({ error: 'Artículo no encontrado' });
+    const item = itemRes.rows[0];
+
+    // Restricción: El usuario solo puede solicitar préstamos de la unidad a la que pertenece
+    if (req.user.role !== 'Administrador' && req.user.role !== 'Supervisor' && item.direction_id !== req.user.direction_id) {
+      return res.status(403).json({ error: 'Solo puede solicitar préstamos de artículos pertenecientes a su propia unidad.' });
+    }
+
+    if (item.quantity < quantity) return res.status(400).json({ error: 'Stock insuficiente' });
+
+    const finalIsReturnable = is_returnable === 'SI' ? 'SI' : 'NO';
+    const finalReturnDate = finalIsReturnable === 'SI' ? (return_date || 'Sin fecha') : 'No aplica';
+
     await db.query(
-      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')`,
-      [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0]
+      `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
+      [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable]
     );
-    await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de compra para: ${item_description} (Cant: ${quantity}).`);
-    res.json({ message: 'Solicitud de cotización enviada a compras.' });
+    await logAudit(req.user.username, 'SOLICITUD_PRÉSTAMO', `Solicitud de préstamo para artículo ID ${item_id} (Cant: ${quantity}).`);
+    res.json({ message: 'Solicitud de préstamo registrada. Pendiente de aprobación.' });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loans/:id/approve', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const loanRes = await client.query("SELECT * FROM loans WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
+    if (loanRes.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
+    }
+    const loan = loanRes.rows[0];
+
+    const itemRes = await client.query('SELECT * FROM items WHERE id = $1', [loan.item_id]);
+    if (itemRes.rows.length === 0 || itemRes.rows[0].quantity < loan.quantity) {
+      client.release();
+      return res.status(400).json({ error: 'Stock insuficiente' });
+    }
+
+    await client.query('BEGIN');
+    await client.query('UPDATE items SET quantity = quantity - $1 WHERE id = $2', [loan.quantity, loan.item_id]);
+    await client.query("UPDATE loans SET status = 'ACTIVO' WHERE id = $1", [req.params.id]);
+    await client.query('COMMIT');
+    client.release();
+
+    await logAudit(req.user.username, 'APROBAR_PRÉSTAMO', `Se aprobó el préstamo ID ${req.params.id}.`);
+    res.json({ message: 'Préstamo aprobado y stock descontado' });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) {}
+    client.release();
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loans/:id/reject', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
+  try {
+    const result = await db.query("UPDATE loans SET status = 'RECHAZADO' WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
+    if (result.rowCount === 0) return res.status(400).json({ error: 'No se pudo rechazar' });
+    await logAudit(req.user.username, 'RECHAZAR_PRÉSTAMO', `Se rechazó el préstamo ID ${req.params.id}.`);
+    res.json({ message: 'Solicitud rechazada.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') return res.status(403).json({ error: 'Solo lectura.' });
+  const client = await db.pool.connect();
+  try {
+    const loanRes = await client.query("SELECT * FROM loans WHERE id = $1 AND status = 'ACTIVO'", [req.params.id]);
+    if (loanRes.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Préstamo activo no encontrado' });
+    }
+    const loan = loanRes.rows[0];
+
+    await client.query('BEGIN');
+    if (loan.is_returnable === 'SI') {
+      await client.query('UPDATE items SET quantity = quantity + $1 WHERE id = $2', [loan.quantity, loan.item_id]);
+    }
+    await client.query("UPDATE loans SET status = 'DEVUELTO' WHERE id = $1", [req.params.id]);
+    await client.query('COMMIT');
+    client.release();
+
+    await logAudit(req.user.username, 'DEVOLUCIÓN_PRÉSTAMO', `Se procesó la devolución del préstamo ID ${req.params.id}.`);
+    res.json({ message: 'Cierre de préstamo procesado con éxito' });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (e) {}
+    client.release();
     res.status(500).json({ error: err.message });
   }
 });
@@ -222,6 +310,21 @@ app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
       LEFT JOIN directions ON purchase_requests.direction_id = directions.id
     `);
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
+  if (req.user.role === 'Usuario (Solo lectura)') return res.status(403).json({ error: 'Solo lectura.' });
+  const { item_description, quantity, estimated_price } = req.body;
+  try {
+    await db.query(
+      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')`,
+      [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0]
+    );
+    await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de compra para: ${item_description} (Cant: ${quantity}).`);
+    res.json({ message: 'Solicitud de cotización enviada a compras.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -251,7 +354,7 @@ app.post('/api/purchase-requests/:id/return', authMiddleware, supervisorOrAdminM
   }
 });
 
-// CHAT Y BÚSQUEDA INTELIGENTE DE INVENTARIO / COMPRA
+// CHAT Y BÚSQUEDA INTELIGENTE
 app.get('/api/messages', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
@@ -296,13 +399,10 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
   }
 });
 
-// Supervisor aprueba la solicitud del chat y el sistema busca coincidencias en inventario
 app.post('/api/messages/:id/approve', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     const msgRes = await db.query('SELECT * FROM messages WHERE id = $1', [req.params.id]);
     if (msgRes.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
-    const msg = msgRes.rows[0];
-
     await db.query("UPDATE messages SET status = 'APROBADO' WHERE id = $1", [req.params.id]);
     await logAudit(req.user.username, 'APROBAR_CHAT_SUPERVISOR', `Supervisor aprobó solicitud de chat ID ${req.params.id}.`);
     res.json({ message: 'Solicitud aprobada por supervisor.' });
@@ -321,7 +421,6 @@ app.post('/api/messages/:id/reject', authMiddleware, supervisorOrAdminMiddleware
   }
 });
 
-// Procesar Préstamo desde Chat (Si hay existencia)
 app.post('/api/messages/:id/process-loan', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   const { item_id } = req.body;
   const client = await db.pool.connect();
@@ -336,20 +435,18 @@ app.post('/api/messages/:id/process-loan', authMiddleware, supervisorOrAdminMidd
     const itemRes = await client.query('SELECT * FROM items WHERE id = $1', [item_id]);
     if (itemRes.rows.length === 0) {
       client.release();
-      return res.status(404).json({ error: 'Artículo de inventario no encontrado' });
+      return res.status(404).json({ error: 'Artículo no encontrado' });
     }
     const item = itemRes.rows[0];
 
     if (item.quantity < msg.quantity) {
       client.release();
-      return res.status(400).json({ error: 'Stock insuficiente para completar el préstamo' });
+      return res.status(400).json({ error: 'Stock insuficiente' });
     }
 
     await client.query('BEGIN');
-    // Descontar del stock existente
     await client.query('UPDATE items SET quantity = quantity - $1 WHERE id = $2', [msg.quantity, item_id]);
 
-    // Registrar en préstamos indicando quién lo prestó y quién lo recibió
     await client.query(
       `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) 
        VALUES ($1, $2, $3, $4, $5, $6, 'Sin fecha', 'SI', 'ACTIVO')`,
@@ -361,7 +458,7 @@ app.post('/api/messages/:id/process-loan', authMiddleware, supervisorOrAdminMidd
     client.release();
 
     await logAudit(req.user.username, 'PRÉSTAMO_DESDE_CHAT', `Se prestó ${msg.quantity} de ${item.description} a ${msg.sender_name}.`);
-    res.json({ message: 'Préstamo procesado con éxito. Stock disminuido y asignado.' });
+    res.json({ message: 'Préstamo procesado con éxito.' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
     client.release();
@@ -369,7 +466,6 @@ app.post('/api/messages/:id/process-loan', authMiddleware, supervisorOrAdminMidd
   }
 });
 
-// Enviar a Compras desde Chat (Si no hay existencia)
 app.post('/api/messages/:id/process-purchase', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   const client = await db.pool.connect();
   try {
@@ -389,8 +485,8 @@ app.post('/api/messages/:id/process-purchase', authMiddleware, supervisorOrAdmin
     await client.query('COMMIT');
     client.release();
 
-    await logAudit(req.user.username, 'COMPRA_DESDE_CHAT', `Se generó solicitud de compra automática para: ${msg.item_description}.`);
-    res.json({ message: 'Solicitud enviada al módulo de cotizaciones y compras.' });
+    await logAudit(req.user.username, 'COMPRA_DESDE_CHAT', `Se generó solicitud de compra para: ${msg.item_description}.`);
+    res.json({ message: 'Enviado a cotización de compras.' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
     client.release();
@@ -398,7 +494,6 @@ app.post('/api/messages/:id/process-purchase', authMiddleware, supervisorOrAdmin
   }
 });
 
-// ENDPOINT DE AUDITORÍA
 app.get('/api/audit-logs', authMiddleware, supervisorOrAdminMiddleware, async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM audit_logs ORDER BY date DESC LIMIT 100');

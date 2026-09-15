@@ -84,7 +84,7 @@ async function initDB() {
         is_request BOOLEAN DEFAULT FALSE,
         item_description TEXT,
         quantity REAL,
-        status TEXT DEFAULT 'PENDIENTE_UNIDAD',
+        status TEXT DEFAULT 'PENDIENTE_APROBACION',
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
