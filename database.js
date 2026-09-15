@@ -2,7 +2,8 @@ const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  family: 4 // Fuerza el uso de IPv4 para evitar el error ENETUNREACH en Render
 });
 
 let isInitialized = false;
@@ -93,7 +94,7 @@ async function initDB() {
     `);
 
     isInitialized = true;
-    console.log('Base de datos PostgreSQL inicializada y sincronizada correctamente.');
+    console.log('Base de datos PostgreSQL inicializada y sincronizada correctamente con IPv4.');
   } catch (err) {
     console.error('Error inicializando la base de datos:', err.message);
   }
