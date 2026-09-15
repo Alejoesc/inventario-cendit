@@ -42,7 +42,6 @@ async function logAudit(username, action, details) {
   }
 }
 
-// ENDPOINT BCV EN VIVO
 app.get('/api/bcv', async (req, res) => {
   https.get('https://rates.dolarvzla.com/bcv/current.json', (resp) => {
     let data = '';
@@ -208,7 +207,6 @@ app.post('/api/items', authMiddleware, async (req, res) => {
   }
 });
 
-// EDITAR ARTÍCULO (Permitido a encargados / Usuario con permisos, administradores y supervisores)
 app.put('/api/items/:id', authMiddleware, async (req, res) => {
   if (req.user.role === 'Usuario (Solo lectura)') {
     return res.status(403).json({ error: 'Solo lectura.' });
@@ -413,7 +411,6 @@ app.post('/api/purchase-requests/:id/return', authMiddleware, supervisorOrAdminM
   }
 });
 
-// CHAT Y BÚSQUEDA INTELIGENTE
 app.get('/api/messages', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(`

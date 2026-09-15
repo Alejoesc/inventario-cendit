@@ -211,7 +211,7 @@
 
                 <div class="box">
                     <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Los encargados de inventario (Usuario con permisos) pueden registrar y editar el stock, mientras que la autorización final de préstamos, chats y compras recae en el Supervisor o Administrador. Tasas oficiales del BCV integradas en tiempo real.</p>
+                    <p>Unidad bloqueada automáticamente para usuarios de su propia unidad, archivos adjuntos estrictamente en PDF o CSV, y tasas BCV en vivo.</p>
                 </div>
             </div>
 
@@ -324,7 +324,7 @@
             <!-- VISTA 4: COTIZACIONES Y COMPRAS -->
             <div id="view-purchases" class="view-section">
                 <div class="box">
-                    <h3>Solicitud de Cotización de Compra (Con Conversión BCV y Adjunto)</h3>
+                    <h3>Solicitud de Cotización de Compra (Adjunto PDF / CSV)</h3>
                     
                     <div style="margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
                         <input type="checkbox" id="isExistingItemCheck" onchange="toggleExistingItemPurchase(this)" style="width:18px; height:18px;">
@@ -340,7 +340,10 @@
                     <div class="form-row">
                         <input type="text" id="purchaseDesc" placeholder="Descripción del material a cotizar">
                         <input type="number" id="purchaseQty" placeholder="Cantidad / Metros requeridos" step="any">
-                        <input type="text" id="purchaseQuotationRef" placeholder="Adjuntar / Referencia de Cotización (N° u observaciones)">
+                        <div>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block; color:var(--text-secondary);">Adjuntar Archivo (PDF o CSV):</label>
+                            <input type="file" id="purchaseFile" accept=".pdf, .csv" style="padding: 7px; font-size: 0.85rem;">
+                        </div>
                     </div>
 
                     <div class="form-row">
@@ -358,7 +361,7 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Solicitante</th>
-                                    <th>Material / Ref. Cotización</th>
+                                    <th>Material / Archivo Adjunto</th>
                                     <th>Cant.</th>
                                     <th>Monto Estimado ($ / Bs.)</th>
                                     <th>Estado / Observaciones</th>
@@ -625,6 +628,12 @@
                     chatTargetDir.innerHTML += `<option value="${d.id}">Unidad: ${d.name}</option>`;
                 });
 
+                // BLOQUEAR UNIDAD EN REGISTRO SI EL USUARIO NO ES ADMIN/SUPERVISOR
+                if (loggedInUserData && currentRole !== 'Administrador' && currentRole !== 'Supervisor') {
+                    itemDir.value = loggedInUserData.direction_id;
+                    itemDir.disabled = true;
+                }
+
                 allItemsCache.forEach(i => {
                     purchaseExistingItemSelect.innerHTML += `<option value="${i.id}">${i.description} [Unidad: ${i.direction_name}] (Stock: ${i.quantity})</option>`;
                 });
@@ -757,7 +766,7 @@
                         pActions = 'N/A';
                     }
 
-                    let refInfo = p.quotation_ref ? `<br><small style="color:var(--accent);">Ref/Adjunto: ${p.quotation_ref}</small>` : '';
+                    let refInfo = p.quotation_ref ? `<br><small style="color:var(--accent);">Archivo (PDF/CSV): ${p.quotation_ref}</small>` : '';
 
                     purchaseTable.innerHTML += `
                         <tr>
@@ -1185,12 +1194,16 @@
         async function createPurchaseRequest() {
             const isExisting = document.getElementById('isExistingItemCheck').checked;
             const existingId = isExisting ? document.getElementById('purchaseExistingItemSelect').value : null;
+            
+            const fileInput = document.getElementById('purchaseFile');
+            const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : '';
+
             const body = {
                 item_description: document.getElementById('purchaseDesc').value.trim(),
                 quantity: parseFloat(document.getElementById('purchaseQty').value),
                 estimated_price: parseFloat(document.getElementById('purchasePriceUSD').value) || 0,
                 estimated_price_bs: parseFloat(document.getElementById('purchasePriceBs').value) || 0,
-                quotation_ref: document.getElementById('purchaseQuotationRef').value.trim(),
+                quotation_ref: fileName || 'Sin archivo adjunto',
                 existing_item_id: existingId || null
             };
             if(!body.item_description || isNaN(body.quantity)) return alert('Complete la descripción y cantidad');
@@ -1201,7 +1214,7 @@
             document.getElementById('purchaseQty').value = '';
             document.getElementById('purchasePriceUSD').value = '';
             document.getElementById('purchasePriceBs').value = '';
-            document.getElementById('purchaseQuotationRef').value = '';
+            document.getElementById('purchaseFile').value = '';
             document.getElementById('isExistingItemCheck').checked = false;
             document.getElementById('existingItemRow').style.display = 'none';
             document.getElementById('purchaseDesc').readOnly = false;
