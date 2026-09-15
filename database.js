@@ -5,6 +5,8 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+let isInitialized = false;
+
 async function initDB() {
   try {
     await pool.query(`
@@ -90,12 +92,23 @@ async function initDB() {
       ON CONFLICT (username) DO NOTHING;
     `);
 
-    console.log('Base de datos PostgreSQL inicializada correctamente.');
+    isInitialized = true;
+    console.log('Base de datos PostgreSQL inicializada y sincronizada correctamente.');
   } catch (err) {
     console.error('Error inicializando la base de datos:', err.message);
   }
 }
 
-initDB();
+const initPromise = initDB();
 
-module.exports = pool;
+async function query(text, params) {
+  if (!isInitialized) {
+    await initPromise;
+  }
+  return pool.query(text, params);
+}
+
+module.exports = {
+  query,
+  pool
+};

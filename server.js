@@ -1,5 +1,5 @@
 const express = require('express');
-const pool = require('./database');
+const db = require('./database');
 const app = express();
 
 app.use(express.json());
@@ -10,7 +10,7 @@ async function authMiddleware(req, res, next) {
   if (!username) return res.status(401).json({ error: 'No autenticado' });
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const result = await db.query('SELECT * FROM users WHERE username = $1 OR cedula = $1', [username]);
     if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario no válido' });
     req.user = result.rows[0];
     next();
@@ -26,13 +26,13 @@ function adminMiddleware(req, res, next) {
   next();
 }
 
-// Login compatible por Usuario o Cédula
+// Inicio de sesión por Usuario o Cédula
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Ingrese usuario o cédula y contraseña' });
 
   try {
-    const result = await pool.query(
+    const result = await db.query(
       'SELECT * FROM users WHERE (username = $1 OR cedula = $1) AND password = $2',
       [username.trim(), password.trim()]
     );
@@ -46,7 +46,7 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT users.*, directions.name as direction_name 
       FROM users 
       LEFT JOIN directions ON users.direction_id = directions.id
@@ -60,7 +60,7 @@ app.get('/api/users', authMiddleware, async (req, res) => {
 app.post('/api/users', authMiddleware, adminMiddleware, async (req, res) => {
   const { username, cedula, password, role, direction_id } = req.body;
   try {
-    await pool.query(
+    await db.query(
       `INSERT INTO users (username, cedula, password, role, direction_id) VALUES ($1, $2, $3, $4, $5)`,
       [username, cedula, password, role || 'Operador', direction_id || null]
     );
@@ -72,7 +72,7 @@ app.post('/api/users', authMiddleware, adminMiddleware, async (req, res) => {
 
 app.delete('/api/users/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    await pool.query('DELETE FROM users WHERE id = $1 AND id != 1', [req.params.id]);
+    await db.query('DELETE FROM users WHERE id = $1 AND id != 1', [req.params.id]);
     res.json({ message: 'Usuario eliminado' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -81,7 +81,7 @@ app.delete('/api/users/:id', authMiddleware, adminMiddleware, async (req, res) =
 
 app.get('/api/directions', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM directions');
+    const result = await db.query('SELECT * FROM directions');
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -91,7 +91,7 @@ app.get('/api/directions', authMiddleware, async (req, res) => {
 app.post('/api/directions', authMiddleware, adminMiddleware, async (req, res) => {
   const { name } = req.body;
   try {
-    await pool.query('INSERT INTO directions (name) VALUES ($1)', [name]);
+    await db.query('INSERT INTO directions (name) VALUES ($1)', [name]);
     res.json({ message: 'Dirección agregada' });
   } catch (err) {
     res.status(500).json({ error: 'La dirección ya existe' });
@@ -100,7 +100,7 @@ app.post('/api/directions', authMiddleware, adminMiddleware, async (req, res) =>
 
 app.delete('/api/directions/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    await pool.query('DELETE FROM directions WHERE id = $1', [req.params.id]);
+    await db.query('DELETE FROM directions WHERE id = $1', [req.params.id]);
     res.json({ message: 'Dirección eliminada' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -109,7 +109,7 @@ app.delete('/api/directions/:id', authMiddleware, adminMiddleware, async (req, r
 
 app.get('/api/items', authMiddleware, async (req, res) => {
   try {
-    let query = `
+    let queryText = `
       SELECT items.*, directions.name as direction_name 
       FROM items 
       LEFT JOIN directions ON items.direction_id = directions.id
@@ -117,11 +117,11 @@ app.get('/api/items', authMiddleware, async (req, res) => {
     let params = [];
 
     if (req.user.role !== 'Administrador') {
-      query += ` WHERE items.direction_id = $1`;
+      queryText += ` WHERE items.direction_id = $1`;
       params.push(req.user.direction_id);
     }
 
-    const result = await pool.query(query, params);
+    const result = await db.query(queryText, params);
     const items = result.rows.map(i => {
       const threshold = i.unit_type === 'metros' ? 100 : 10;
       return { ...i, alerta_reposicion: i.quantity <= threshold };
@@ -140,7 +140,7 @@ app.post('/api/items', authMiddleware, async (req, res) => {
   }
 
   try {
-    await pool.query(
+    await db.query(
       `INSERT INTO items (direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [direction_id, description, national_asset_number || null, unit_type || 'unidades', quantity, price || 0, project_name || 'General', assigned_username || req.user.username]
     );
@@ -152,7 +152,7 @@ app.post('/api/items', authMiddleware, async (req, res) => {
 
 app.get('/api/loans', authMiddleware, async (req, res) => {
   try {
-    let query = `
+    let queryText = `
       SELECT loans.*, 
              items.description as item_name, 
              items.national_asset_number,
@@ -177,11 +177,11 @@ app.get('/api/loans', authMiddleware, async (req, res) => {
     let params = [];
 
     if (req.user.role !== 'Administrador') {
-      query += ` WHERE loans.source_direction_id = $1 OR loans.target_direction_id = $1`;
+      queryText += ` WHERE loans.source_direction_id = $1 OR loans.target_direction_id = $1`;
       params.push(req.user.direction_id);
     }
 
-    const result = await pool.query(query, params);
+    const result = await db.query(queryText, params);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -193,7 +193,7 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
   const sender_responsible = req.user.username;
 
   try {
-    const itemRes = await pool.query('SELECT * FROM items WHERE id = $1', [item_id]);
+    const itemRes = await db.query('SELECT * FROM items WHERE id = $1', [item_id]);
     if (itemRes.rows.length === 0) return res.status(404).json({ error: 'Artículo no encontrado' });
     const item = itemRes.rows[0];
 
@@ -202,7 +202,7 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
     const finalIsReturnable = is_returnable === 'SI' ? 'SI' : 'NO';
     const finalReturnDate = finalIsReturnable === 'SI' ? (return_date || 'Sin fecha') : 'No aplica';
 
-    await pool.query(
+    await db.query(
       `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
       [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable]
     );
@@ -213,31 +213,38 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/loans/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const loanRes = await pool.query("SELECT * FROM loans WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
-    if (loanRes.rows.length === 0) return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
+    const loanRes = await client.query("SELECT * FROM loans WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
+    if (loanRes.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Solicitud no encontrada o ya procesada' });
+    }
     const loan = loanRes.rows[0];
 
-    const itemRes = await pool.query('SELECT * FROM items WHERE id = $1', [loan.item_id]);
+    const itemRes = await client.query('SELECT * FROM items WHERE id = $1', [loan.item_id]);
     if (itemRes.rows.length === 0 || itemRes.rows[0].quantity < loan.quantity) {
+      client.release();
       return res.status(400).json({ error: 'Stock insuficiente' });
     }
 
-    await pool.query('BEGIN');
-    await pool.query('UPDATE items SET quantity = quantity - $1 WHERE id = $2', [loan.quantity, loan.item_id]);
-    await pool.query("UPDATE loans SET status = 'ACTIVO' WHERE id = $1", [req.params.id]);
-    await pool.query('COMMIT');
+    await client.query('BEGIN');
+    await client.query('UPDATE items SET quantity = quantity - $1 WHERE id = $2', [loan.quantity, loan.item_id]);
+    await client.query("UPDATE loans SET status = 'ACTIVO' WHERE id = $1", [req.params.id]);
+    await client.query('COMMIT');
+    client.release();
 
     res.json({ message: 'Préstamo aprobado y stock descontado' });
   } catch (err) {
-    await pool.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch (e) {}
+    client.release();
     res.status(500).json({ error: err.message });
   }
 });
 
 app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const result = await pool.query("UPDATE loans SET status = 'RECHAZADO' WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
+    const result = await db.query("UPDATE loans SET status = 'RECHAZADO' WHERE id = $1 AND status = 'PENDIENTE'", [req.params.id]);
     if (result.rowCount === 0) return res.status(400).json({ error: 'No se pudo rechazar' });
     res.json({ message: 'Solicitud rechazada.' });
   } catch (err) {
@@ -246,28 +253,34 @@ app.post('/api/loans/:id/reject', authMiddleware, adminMiddleware, async (req, r
 });
 
 app.post('/api/loans/:id/return', authMiddleware, async (req, res) => {
+  const client = await db.pool.connect();
   try {
-    const loanRes = await pool.query("SELECT * FROM loans WHERE id = $1 AND status = 'ACTIVO'", [req.params.id]);
-    if (loanRes.rows.length === 0) return res.status(404).json({ error: 'Préstamo activo no encontrado' });
+    const loanRes = await client.query("SELECT * FROM loans WHERE id = $1 AND status = 'ACTIVO'", [req.params.id]);
+    if (loanRes.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Préstamo activo no encontrado' });
+    }
     const loan = loanRes.rows[0];
 
-    await pool.query('BEGIN');
+    await client.query('BEGIN');
     if (loan.is_returnable === 'SI') {
-      await pool.query('UPDATE items SET quantity = quantity + $1 WHERE id = $2', [loan.quantity, loan.item_id]);
+      await client.query('UPDATE items SET quantity = quantity + $1 WHERE id = $2', [loan.quantity, loan.item_id]);
     }
-    await pool.query("UPDATE loans SET status = 'DEVUELTO' WHERE id = $1", [req.params.id]);
-    await pool.query('COMMIT');
+    await client.query("UPDATE loans SET status = 'DEVUELTO' WHERE id = $1", [req.params.id]);
+    await client.query('COMMIT');
+    client.release();
 
     res.json({ message: 'Cierre de préstamo procesado con éxito' });
   } catch (err) {
-    await pool.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch (e) {}
+    client.release();
     res.status(500).json({ error: err.message });
   }
 });
 
 app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
   try {
-    let query = `
+    let queryText = `
       SELECT purchase_requests.*, users.username, users.cedula, directions.name as direction_name
       FROM purchase_requests
       JOIN users ON purchase_requests.user_id = users.id
@@ -275,10 +288,10 @@ app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
     `;
     let params = [];
     if (req.user.role !== 'Administrador') {
-      query += ` WHERE purchase_requests.direction_id = $1`;
+      queryText += ` WHERE purchase_requests.direction_id = $1`;
       params.push(req.user.direction_id);
     }
-    const result = await pool.query(query, params);
+    const result = await db.query(queryText, params);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -288,7 +301,7 @@ app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
 app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
   const { item_description, quantity, estimated_price } = req.body;
   try {
-    await pool.query(
+    await db.query(
       `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, status) VALUES ($1, $2, $3, $4, $5, 'PENDIENTE')`,
       [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0]
     );
@@ -301,7 +314,7 @@ app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
 app.post('/api/purchase-requests/:id/return', authMiddleware, adminMiddleware, async (req, res) => {
   const { notes } = req.body;
   try {
-    await pool.query(
+    await db.query(
       `UPDATE purchase_requests SET status = 'DEVUELTO', supervisor_notes = $1 WHERE id = $2`,
       [notes || 'Revisar especificaciones de cotización', req.params.id]
     );
@@ -313,7 +326,7 @@ app.post('/api/purchase-requests/:id/return', authMiddleware, adminMiddleware, a
 
 app.post('/api/purchase-requests/:id/approve', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    await pool.query(`UPDATE purchase_requests SET status = 'APROBADO' WHERE id = $1`, [req.params.id]);
+    await db.query(`UPDATE purchase_requests SET status = 'APROBADO' WHERE id = $1`, [req.params.id]);
     res.json({ message: 'Solicitud de cotización aprobada.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
