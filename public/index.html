@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventario CENDIT — Sistema Inteligente</title>
+    <title>CENDIT — Sistema de Control Inteligente</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -26,22 +26,24 @@
             <h3 style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:10px;">Editar Artículo / Stock</h3>
             <input type="hidden" id="editItemId">
             <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Tipo de Ítem:</label>
+                <select id="editItemCategory" onchange="toggleEditCategoryFields(this.value)">
+                    <option value="Material">Material</option>
+                    <option value="Fibra">Fibra Óptica</option>
+                    <option value="Cable Coaxial">Cable Coaxial</option>
+                    <option value="Equipo">Equipo (Con Bien Nacional)</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 12px;">
                 <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Descripción:</label>
                 <input type="text" id="editItemDesc">
             </div>
-            <div style="margin-bottom: 12px;">
+            <div style="margin-bottom: 12px;" id="editAssetRow">
                 <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">N° Bien Nacional:</label>
                 <input type="text" id="editItemAsset">
             </div>
             <div style="margin-bottom: 12px;">
-                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Tipo de Medida:</label>
-                <select id="editItemUnitType">
-                    <option value="unidades">Unidades / Piezas</option>
-                    <option value="metros">Metros</option>
-                </select>
-            </div>
-            <div style="margin-bottom: 12px;">
-                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Cantidad / Metros:</label>
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;" id="editQtyLabel">Cantidad / Metros:</label>
                 <input type="number" id="editItemQty" step="any">
             </div>
             <div style="margin-bottom: 12px;">
@@ -49,11 +51,15 @@
                 <input type="number" id="editItemPrice" step="any">
             </div>
             <div style="margin-bottom: 12px;">
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Ubicación Física:</label>
+                <input type="text" id="editItemLocation" placeholder="Ej: Laboratorio, Rack 3, Almacén">
+            </div>
+            <div style="margin-bottom: 12px;">
                 <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Proyecto:</label>
                 <input type="text" id="editItemProject">
             </div>
             <div style="margin-bottom: 20px;">
-                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Asignado A (Persona o Unidad):</label>
+                <label style="font-size:0.8rem; font-weight:600; display:block; margin-bottom:4px;">Asignado A (Persona o Unidad independiente):</label>
                 <input type="text" id="editItemAssigned">
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
@@ -151,15 +157,16 @@
 
     <!-- SIDEBAR -->
     <aside>
-        <div class="brand-header">CENDIT C.I.</div>
+        <div class="brand-header">CENDIT INSTITUCIONAL</div>
         <ul class="sidebar-menu">
-            <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel</a></li>
+            <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel General</a></li>
             <li onclick="switchView('inventory', this)"><a href="#">📦 Stock por Unidad</a></li>
-            <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos</a></li>
-            <li onclick="switchView('purchases', this)"><a href="#">🛒 Cotizaciones y Compras</a></li>
+            <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos con Firma</a></li>
+            <li onclick="switchView('purchases', this)"><a href="#">🛒 Cotizaciones (USD/EUR)</a></li>
+            <li onclick="switchView('reports', this)"><a href="#">📈 Módulo de Reportes</a></li>
             <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades</a></li>
             <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Accesos</a></li>
-            <li onclick="switchView('audit', this)" id="menuAudit" style="display:none;"><a href="#">📋 Historial / Auditoría</a></li>
+            <li onclick="switchView('audit', this)" id="menuAudit" style="display:none;"><a href="#">📋 Auditoría</a></li>
             <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Salir</a></li>
         </ul>
     </aside>
@@ -210,46 +217,50 @@
                 </div>
 
                 <div class="box">
-                    <h3>Panel de Monitoreo Inteligente CENDIT</h3>
-                    <p>Unidad bloqueada automáticamente para usuarios de su propia unidad, archivos adjuntos estrictamente en PDF o CSV, y tasas BCV en vivo.</p>
+                    <h3>Sistema Integrado de Control Patrimonial y Tecnológico CENDIT</h3>
+                    <p>Módulo con clasificación estricta de ítems (Materiales, Fibra, Cable Coaxial, Equipos con Bien Nacional), asignación independiente de ubicación y responsable, cotizaciones en Dólares y Euros con tasas BCV en vivo, y firma digital obligatoria con autorización final de supervisión.</p>
                 </div>
             </div>
 
             <!-- VISTA 2: INVENTARIO -->
             <div id="view-inventory" class="view-section">
                 <div class="box" id="addItemBox" style="display:none;">
-                    <h3>Registrar Material / Equipo</h3>
+                    <h3>Registrar Material o Equipo en Inventario</h3>
                     <div class="form-row">
                         <select id="itemDirSelect"></select>
-                        <input type="text" id="desc" placeholder="Descripción (Ej: Cable UTP, Router Cisco)">
-                        <input type="text" id="assetNum" placeholder="N° Bien Nacional (Si aplica)">
+                        <select id="itemCategorySelect" onchange="toggleCategoryFields(this.value)">
+                            <option value="Material">Material (Cantidad en unidades)</option>
+                            <option value="Fibra">Fibra Óptica (Medida en metros)</option>
+                            <option value="Cable Coaxial">Cable Coaxial (Medida en metros)</option>
+                            <option value="Equipo">Equipo (Incluye Bien Nacional)</option>
+                        </select>
+                        <input type="text" id="desc" placeholder="Descripción del artículo">
                     </div>
                     <div class="form-row">
-                        <select id="unitTypeSelect">
-                            <option value="unidades">Unidades / Piezas</option>
-                            <option value="metros">Metros (Cable / Fibra)</option>
-                        </select>
-                        <input type="number" id="qty" placeholder="Cantidad o Metros" step="any">
+                        <input type="text" id="assetNum" placeholder="N° Bien Nacional (Solo para Equipos)" style="display:none;">
+                        <input type="number" id="qty" placeholder="Cantidad / Metros" step="any">
                         <input type="number" id="itemPrice" placeholder="Precio Unitario ($)" step="any">
                     </div>
                     <div class="form-row">
-                        <input type="text" id="projectName" placeholder="Proyecto a cargo (Ej: Redes CENDIT 2026)">
-                        <input type="text" id="assignedUser" placeholder="Asignado a (Persona o Unidad)">
-                        <button onclick="addItem()">Registrar Artículo</button>
+                        <input type="text" id="itemLocation" placeholder="Ubicación física (Ej: Rack 2, Laboratorio Óptica)">
+                        <input type="text" id="projectName" placeholder="Proyecto asignado (Ej: Redes CENDIT 2026)">
+                        <input type="text" id="assignedTo" placeholder="Asignado a (Persona o Unidad responsable)">
+                        <button onclick="addItem()">Registrar en Inventario</button>
                     </div>
                 </div>
 
                 <div class="box">
-                    <h3>Inventario por Tipo (Equipos, Materiales y Metros)</h3>
+                    <h3>Inventario Institucional por Clasificación</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
                                     <th>ID</th>
                                     <th>Unidad</th>
+                                    <th>Tipo</th>
                                     <th>Descripción / Proyecto</th>
-                                    <th>Bien Nacional</th>
-                                    <th>Asignado A / Unidad</th>
+                                    <th>Bien Nac. / Ubicación</th>
+                                    <th>Asignado A</th>
                                     <th>Precio ($)</th>
                                     <th>Stock / Medida</th>
                                     <th>Estado</th>
@@ -262,10 +273,10 @@
                 </div>
             </div>
 
-            <!-- VISTA 3: PRÉSTAMOS -->
+            <!-- VISTA 3: PRÉSTAMOS CON FIRMA DIGITAL -->
             <div id="view-loans" class="view-section">
                 <div class="box">
-                    <h3>Registrar Solicitud de Préstamo (Requiere Autorización del Supervisor)</h3>
+                    <h3>Registrar Solicitud de Préstamo con Firma Digital</h3>
                     <div class="form-row">
                         <select id="loanItemSelect"></select>
                         <select id="targetDirSelect"></select>
@@ -296,12 +307,25 @@
                                 <option value="NO">No volverá / Definitivo</option>
                             </select>
                         </div>
-                        <button onclick="createLoan()" style="align-self: flex-end;">Enviar Solicitud</button>
                     </div>
+
+                    <!-- PAD DE FIRMA DIGITAL -->
+                    <div style="margin-top: 15px;">
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 6px;">Firma Digital del Solicitante (Dibuje en el recuadro):</label>
+                        <div class="signature-pad-container">
+                            <canvas id="signatureCanvas"></canvas>
+                            <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Firme usando el mouse o su dedo en dispositivos táctiles</span>
+                                <button type="button" onclick="clearSignature()" class="btn-danger" style="padding: 4px 10px; font-size: 0.75rem;">Limpiar Firma</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="createLoan()" style="margin-top: 15px; width: 100%;">Enviar Solicitud con Firma (Pendiente Supervisor)</button>
                 </div>
 
                 <div class="box">
-                    <h3>Control de Préstamos y Reportes</h3>
+                    <h3>Control de Préstamos e Historial de Firmas</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
@@ -311,6 +335,7 @@
                                     <th>Reporte Emisor ➔ Destino</th>
                                     <th>Cant.</th>
                                     <th>Fecha / Tipo</th>
+                                    <th>Firma Solicitante</th>
                                     <th>Estado</th>
                                     <th>Acción / Planilla</th>
                                 </tr>
@@ -321,19 +346,19 @@
                 </div>
             </div>
 
-            <!-- VISTA 4: COTIZACIONES Y COMPRAS -->
+            <!-- VISTA 4: COTIZACIONES Y COMPRAS (USD Y EUR) -->
             <div id="view-purchases" class="view-section">
                 <div class="box">
-                    <h3>Solicitud de Cotización de Compra (Adjunto PDF / CSV)</h3>
+                    <h3>Solicitud de Cotización Institucional (Multidivisa USD / EUR)</h3>
                     
                     <div style="margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
                         <input type="checkbox" id="isExistingItemCheck" onchange="toggleExistingItemPurchase(this)" style="width:18px; height:18px;">
-                        <label for="isExistingItemCheck" style="font-weight:600; cursor:pointer;">Cotizar de un material existente en stock (Reabastecimiento)</label>
+                        <label for="isExistingItemCheck" style="font-weight:600; cursor:pointer;">Cotizar material existente en stock (Reabastecimiento de mi unidad)</label>
                     </div>
 
                     <div class="form-row" id="existingItemRow" style="display:none; margin-bottom:12px;">
                         <select id="purchaseExistingItemSelect" onchange="fillPurchaseFromExistingStock(this.value)">
-                            <option value="">Seleccione material existente...</option>
+                            <option value="">Seleccione material existente de su unidad...</option>
                         </select>
                     </div>
 
@@ -347,23 +372,27 @@
                     </div>
 
                     <div class="form-row">
-                        <input type="number" id="purchasePriceUSD" placeholder="Precio Estimado en Dólares ($)" step="any" oninput="convertUsdToBs(this.value)">
-                        <input type="number" id="purchasePriceBs" placeholder="Precio Estimado en Bolívares (Bs.)" step="any">
+                        <select id="purchaseCurrencyType" onchange="convertCurrencyRate(document.getElementById('purchasePriceVal').value)">
+                            <option value="USD">Dólar ($ - Tasa BCV)</option>
+                            <option value="EUR">Euro (€ - Tasa BCV)</option>
+                        </select>
+                        <input type="number" id="purchasePriceVal" placeholder="Monto Unitario en Divisa" step="any" oninput="convertCurrencyRate(this.value)">
+                        <input type="number" id="purchasePriceBs" placeholder="Equivalente Automático en Bolívares (Bs.)" step="any" readonly>
                         <button onclick="createPurchaseRequest()">Enviar a Supervisor</button>
                     </div>
                 </div>
 
                 <div class="box">
-                    <h3>Bandeja de Solicitudes y Devoluciones</h3>
+                    <h3>Bandeja de Cotizaciones y Solicitudes</h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
                                     <th>ID</th>
                                     <th>Solicitante</th>
-                                    <th>Material / Archivo Adjunto</th>
+                                    <th>Material / Archivo</th>
                                     <th>Cant.</th>
-                                    <th>Monto Estimado ($ / Bs.)</th>
+                                    <th>Monto Divisa y Bs. (BCV)</th>
                                     <th>Estado / Observaciones</th>
                                     <th>Acciones (Supervisor)</th>
                                 </tr>
@@ -374,7 +403,58 @@
                 </div>
             </div>
 
-            <!-- VISTA 5: DIRECCIONES -->
+            <!-- VISTA 5: MÓDULO DE REPORTES -->
+            <div id="view-reports" class="view-section">
+                <div class="box">
+                    <h3>📈 Módulo de Reportes de Operaciones Institucionales</h3>
+                    <div class="form-row" style="align-items: flex-end;">
+                        <div>
+                            <label style="font-size: 0.8rem; font-weight:600; display:block; margin-bottom:4px;">Fecha Inicio:</label>
+                            <input type="date" id="reportStartDate">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; font-weight:600; display:block; margin-bottom:4px;">Fecha Fin:</label>
+                            <input type="date" id="reportEndDate">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; font-weight:600; display:block; margin-bottom:4px;">Estado:</label>
+                            <select id="reportStatusFilter">
+                                <option value="">Todos los Estados</option>
+                                <option value="APROBADO">Aprobados</option>
+                                <option value="ACTIVO">Activos</option>
+                                <option value="DEVUELTO">Devueltos</option>
+                                <option value="RECHAZADO">Rechazados</option>
+                            </select>
+                        </div>
+                        <button onclick="loadReportsData()" class="btn-info">Filtrar Reporte</button>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Resultados de Operaciones Registradas</h3>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>ID</th>
+                                    <th>Fecha</th>
+                                    <th>Artículo / Material</th>
+                                    <th>Cantidad</th>
+                                    <th>Origen ➔ Destino</th>
+                                    <th>Responsable</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportsTable">
+                                <tr><td colspan="8" style="text-align:center;">Seleccione los filtros y presione Filtrar Reporte.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 6: DIRECCIONES -->
             <div id="view-directions" class="view-section">
                 <div class="box" id="addDirBox" style="display:none;">
                     <h3>Gestión de Direcciones y Unidades CENDIT</h3>
@@ -396,7 +476,7 @@
                 </div>
             </div>
 
-            <!-- VISTA 6: USUARIOS -->
+            <!-- VISTA 7: USUARIOS -->
             <div id="view-users" class="view-section">
                 <div class="box">
                     <h3>Crear Nuevo Usuario (Encargados de Inventario, Lectura, Supervisor, Admin)</h3>
@@ -432,7 +512,7 @@
                 </div>
             </div>
 
-            <!-- VISTA 7: AUDITORÍA / HISTORIAL (SOLO ADMIN Y SUPERVISOR) -->
+            <!-- VISTA 8: AUDITORÍA -->
             <div id="view-audit" class="view-section">
                 <div class="box">
                     <h3>📋 Historial de Actividad del Sistema (Auditoría)</h3>
@@ -461,6 +541,74 @@
         let loggedInUserData = null;
         let bcvRates = { usd: 36.5, eur: 39.8 };
 
+        // Configuración del Canvas de Firma Digital
+        let canvas, ctx, isDrawing = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('signatureCanvas');
+            if(canvas) {
+                ctx = canvas.getContext('2d');
+                canvas.width = canvas.parentElement.offsetWidth - 20;
+                canvas.height = 140;
+                ctx.lineWidth = 2;
+                ctx.lineJoin = 'round';
+                ctx.strokeStyle = currentTheme === 'dark' ? '#f3f4f6' : '#1e293b';
+
+                canvas.addEventListener('mousedown', startDraw);
+                canvas.addEventListener('mousemove', draw);
+                canvas.addEventListener('mouseup', stopDraw);
+                canvas.addEventListener('mouseleave', stopDraw);
+
+                canvas.addEventListener('touchstart', (e) => {
+                    const touch = e.touches[0];
+                    const mouseEvent = new MouseEvent('mousedown', {
+                        clientX: touch.clientX, clientY: touch.clientY
+                    });
+                    canvas.dispatchEvent(mouseEvent);
+                    e.preventDefault();
+                }, { passive: false });
+
+                canvas.addEventListener('touchmove', (e) => {
+                    const touch = e.touches[0];
+                    const mouseEvent = new MouseEvent('mousemove', {
+                        clientX: touch.clientX, clientY: touch.clientY
+                    });
+                    canvas.dispatchEvent(mouseEvent);
+                    e.preventDefault();
+                }, { passive: false });
+
+                canvas.addEventListener('touchend', (e) => {
+                    const mouseEvent = new MouseEvent('mouseup', {});
+                    canvas.dispatchEvent(mouseEvent);
+                    e.preventDefault();
+                }, { passive: false });
+            }
+        });
+
+        function startDraw(e) {
+            isDrawing = true;
+            ctx.beginPath();
+            const rect = canvas.getBoundingClientRect();
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.stroke();
+        }
+
+        function stopDraw() {
+            isDrawing = false;
+        }
+
+        function clearSignature() {
+            if(ctx && canvas) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
         document.documentElement.setAttribute('data-theme', currentTheme);
         updateThemeButtonText();
 
@@ -483,9 +631,11 @@
             }
         }
 
-        function convertUsdToBs(usdVal) {
-            const usd = parseFloat(usdVal) || 0;
-            const bs = usd * bcvRates.usd;
+        function convertCurrencyRate(val) {
+            const amount = parseFloat(val) || 0;
+            const currType = document.getElementById('purchaseCurrencyType').value;
+            const rate = currType === 'EUR' ? bcvRates.eur : bcvRates.usd;
+            const bs = amount * rate;
             document.getElementById('purchasePriceBs').value = bs.toFixed(2);
         }
 
@@ -494,6 +644,9 @@
             document.documentElement.setAttribute('data-theme', currentTheme);
             localStorage.setItem('cendit_theme', currentTheme);
             updateThemeButtonText();
+            if(ctx && canvas) {
+                ctx.strokeStyle = currentTheme === 'dark' ? '#f3f4f6' : '#1e293b';
+            }
         }
 
         function updateThemeButtonText() {
@@ -552,7 +705,7 @@
 
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
             document.getElementById('senderLockedInput').value = currentUser;
-            document.getElementById('assignedUser').value = currentUser;
+            document.getElementById('assignedTo').value = currentUser;
 
             if (currentRole === 'Administrador' || currentRole === 'Supervisor') {
                 document.getElementById('menuUsers').style.display = 'block';
@@ -581,6 +734,26 @@
             document.getElementById('headerTitle').innerText = el ? el.innerText.trim() : 'Panel de Control';
             if (viewName === 'audit' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
                 loadAuditLogs();
+            }
+        }
+
+        function toggleCategoryFields(category) {
+            const assetRow = document.getElementById('assetNum');
+            if (category === 'Equipo') {
+                assetRow.style.display = 'block';
+            } else {
+                assetRow.style.display = 'none';
+                assetRow.value = '';
+            }
+        }
+
+        function toggleEditCategoryFields(category) {
+            const assetRow = document.getElementById('editAssetRow');
+            if (category === 'Equipo') {
+                assetRow.style.display = 'block';
+            } else {
+                assetRow.style.display = 'none';
+                document.getElementById('editItemAsset').value = '';
             }
         }
 
@@ -628,13 +801,18 @@
                     chatTargetDir.innerHTML += `<option value="${d.id}">Unidad: ${d.name}</option>`;
                 });
 
-                // BLOQUEAR UNIDAD EN REGISTRO SI EL USUARIO NO ES ADMIN/SUPERVISOR
+                // Bloquear unidad en registro si el usuario pertenece a una unidad
                 if (loggedInUserData && currentRole !== 'Administrador' && currentRole !== 'Supervisor') {
                     itemDir.value = loggedInUserData.direction_id;
                     itemDir.disabled = true;
                 }
 
-                allItemsCache.forEach(i => {
+                // Filtrar existencias en cotización solo para la unidad del usuario (si no es admin/supervisor)
+                const eligibleExistingItems = (currentRole === 'Administrador' || currentRole === 'Supervisor')
+                    ? allItemsCache
+                    : allItemsCache.filter(i => loggedInUserData && i.direction_id === loggedInUserData.direction_id);
+
+                eligibleExistingItems.forEach(i => {
                     purchaseExistingItemSelect.innerHTML += `<option value="${i.id}">${i.description} [Unidad: ${i.direction_name}] (Stock: ${i.quantity})</option>`;
                 });
 
@@ -674,20 +852,21 @@
                 invTable.innerHTML = '';
                 allItemsCache.forEach(i => {
                     const unitText = i.unit_type === 'metros' ? `${i.quantity} Metros (m)` : `${i.quantity} Unidades (u)`;
-                    const assetInfo = i.national_asset_number ? `Bien: ${i.national_asset_number}` : 'Sin Bien Nacional';
+                    const assetInfo = i.national_asset_number ? `Bien: ${i.national_asset_number}` : (i.location ? `Ubicación: ${i.location}` : 'N/A');
                     
                     let editBtn = '';
                     if (currentRole !== 'Usuario (Solo lectura)') {
-                        editBtn = `<button class="btn-warning" onclick="openEditItemModal(${i.id}, '${i.description.replace(/'/g, "\\'")}', '${i.national_asset_number || ''}', '${i.unit_type}', ${i.quantity}, ${i.price || 0}, '${(i.project_name || 'General').replace(/'/g, "\\'")}', '${(i.assigned_username || '').replace(/'/g, "\\'")}')" style="padding:4px 8px; font-size:0.75rem;">Editar</button>`;
+                        editBtn = `<button class="btn-warning" onclick="openEditItemModal(${i.id}, '${(i.item_category || 'Material')}', '${i.description.replace(/'/g, "\\'")}', '${i.national_asset_number || ''}', '${i.unit_type}', ${i.quantity}, ${i.price || 0}, '${(i.location || '').replace(/'/g, "\\'")}', '${(i.project_name || 'General').replace(/'/g, "\\'")}', '${(i.assigned_to || '').replace(/'/g, "\\'")}')" style="padding:4px 8px; font-size:0.75rem;">Editar</button>`;
                     }
 
                     invTable.innerHTML += `
                         <tr class="${i.alerta_reposicion ? 'alert-tr' : ''}">
                             <td>${i.id}</td>
                             <td>${i.direction_name || 'N/A'}</td>
+                            <td><span class="badge badge-blue">${i.item_category || 'Material'}</span></td>
                             <td><b>${i.description}</b><br><small style="color:var(--text-secondary);">Proyecto: ${i.project_name || 'General'}</small></td>
                             <td>${assetInfo}</td>
-                            <td>🏢 / 👤 ${i.assigned_username || 'N/A'}</td>
+                            <td>👤 ${i.assigned_to || 'Sin asignar'}</td>
                             <td>$${parseFloat(i.price || 0).toFixed(2)}</td>
                             <td><b>${unitText}</b></td>
                             <td>${i.alerta_reposicion ? '<span class="badge badge-red">⚠️ REPOSICIÓN</span>' : '<span class="badge badge-green">Óptimo</span>'}</td>
@@ -722,7 +901,7 @@
                     let actionButtons = '';
                     if (l.status === 'PENDIENTE' && (currentRole === 'Administrador' || currentRole === 'Supervisor')) {
                         actionButtons = `
-                            <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px;">Autorizar (Supervisor)</button>
+                            <button class="btn-info" onclick="approveLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem; margin-bottom: 5px;">Autorizar Préstamo</button>
                             <button class="btn-danger" onclick="rejectLoan(${l.id})" style="padding: 6px 10px; font-size: 0.8rem;">Rechazar</button>
                         `;
                     } else if (l.status === 'ACTIVO') {
@@ -736,6 +915,8 @@
                         actionButtons = 'Finalizado';
                     }
 
+                    let sigImg = l.signature_data ? `<img src="${l.signature_data}" style="max-height: 35px; background: #fff; border-radius: 4px; padding: 2px;" alt="Firma">` : '<span style="color:var(--text-secondary); font-size:0.75rem;">Sin firma</span>';
+
                     loansTable.innerHTML += `
                         <tr>
                             <td>${l.id}</td>
@@ -743,6 +924,7 @@
                             <td><b>Emisor:</b> ${l.sender_responsible} ➔ <b>Receptor:</b> ${l.receiver_responsible}</td>
                             <td><b>${l.quantity}</b></td>
                             <td>${l.return_date}</td>
+                            <td>${sigImg}</td>
                             <td>${statusBadge}</td>
                             <td>${actionButtons}</td>
                         </tr>
@@ -766,7 +948,7 @@
                         pActions = 'N/A';
                     }
 
-                    let refInfo = p.quotation_ref ? `<br><small style="color:var(--accent);">Archivo (PDF/CSV): ${p.quotation_ref}</small>` : '';
+                    let refInfo = p.quotation_ref ? `<br><small style="color:var(--accent);">Archivo: ${p.quotation_ref}</small>` : '';
 
                     purchaseTable.innerHTML += `
                         <tr>
@@ -774,7 +956,7 @@
                             <td><b>${p.username}</b><br><small>${p.direction_name || ''}</small></td>
                             <td><b>${p.item_description}</b> ${refInfo} ${p.existing_item_name ? '<br><small style="color:#3b82f6;">(Material Existente)</small>' : ''}</td>
                             <td><b>${p.quantity}</b></td>
-                            <td>$${parseFloat(p.estimated_price || 0).toFixed(2)}<br><small style="color:var(--text-secondary);">Bs. ${parseFloat(p.estimated_price_bs || 0).toFixed(2)}</small></td>
+                            <td>${p.currency_type === 'EUR' ? '€' : '$'}${parseFloat(p.estimated_price || 0).toFixed(2)}<br><small style="color:var(--text-secondary);">Bs. ${parseFloat(p.estimated_price_bs || 0).toFixed(2)}</small></td>
                             <td>${pBadge}<br><small style="color:var(--text-secondary);">${p.supervisor_notes ? 'Nota: ' + p.supervisor_notes : ''}</small></td>
                             <td>${pActions}</td>
                         </tr>
@@ -814,6 +996,51 @@
             }
         }
 
+        async function loadReportsData() {
+            const startDate = document.getElementById('reportStartDate').value;
+            const endDate = document.getElementById('reportEndDate').value;
+            const status = document.getElementById('reportStatusFilter').value;
+
+            try {
+                let url = `/api/reports?`;
+                if(startDate) url += `start_date=${startDate}&`;
+                if(endDate) url += `end_date=${endDate}&`;
+                if(status) url += `status=${status}&`;
+
+                const res = await fetch(url, { headers: getHeaders() });
+                const rows = await res.json();
+                const tbody = document.getElementById('reportsTable');
+                tbody.innerHTML = '';
+
+                if(rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No se encontraron operaciones con los filtros seleccionados.</td></tr>';
+                    return;
+                }
+
+                rows.forEach(r => {
+                    let badgeColor = 'badge-yellow';
+                    if(r.status === 'APROBADO' || r.status === 'ACTIVO') badgeColor = 'badge-green';
+                    if(r.status === 'DEVUELTO') badgeColor = 'badge-blue';
+                    if(r.status === 'RECHAZADO') badgeColor = 'badge-red';
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><b>${r.tipo_operacion}</b></td>
+                            <td>#${r.id}</td>
+                            <td>${new Date(r.date).toLocaleDateString()}</td>
+                            <td>${r.item_name}</td>
+                            <td><b>${r.quantity}</b></td>
+                            <td>${r.origen || 'N/A'} ➔ ${r.destino || 'N/A'}</td>
+                            <td>${r.sender_responsible}</td>
+                            <td><span class="badge ${badgeColor}">${r.status}</span></td>
+                        </tr>
+                    `;
+                });
+            } catch(e) {
+                console.error("Error cargando reportes", e);
+            }
+        }
+
         async function loadAuditLogs() {
             if (currentRole !== 'Administrador' && currentRole !== 'Supervisor') return;
             try {
@@ -842,15 +1069,18 @@
         }
 
         // FUNCIONES DE EDICIÓN DE ARTÍCULOS
-        function openEditItemModal(id, desc, asset, unitType, qty, price, project, assigned) {
+        function openEditItemModal(id, category, desc, asset, unitType, qty, price, location, project, assigned) {
             document.getElementById('editItemId').value = id;
+            document.getElementById('editItemCategory').value = category;
             document.getElementById('editItemDesc').value = desc;
             document.getElementById('editItemAsset').value = asset === 'null' ? '' : asset;
             document.getElementById('editItemUnitType').value = unitType;
             document.getElementById('editItemQty').value = qty;
             document.getElementById('editItemPrice').value = price;
+            document.getElementById('editItemLocation').value = location === 'null' ? '' : location;
             document.getElementById('editItemProject').value = project;
-            document.getElementById('editItemAssigned').value = assigned;
+            document.getElementById('editItemAssigned').value = assigned === 'null' ? '' : assigned;
+            toggleEditCategoryFields(category);
             document.getElementById('editItemModal').style.display = 'flex';
         }
 
@@ -861,13 +1091,15 @@
         async function updateItem() {
             const id = document.getElementById('editItemId').value;
             const body = {
+                item_category: document.getElementById('editItemCategory').value,
                 description: document.getElementById('editItemDesc').value.trim(),
                 national_asset_number: document.getElementById('editItemAsset').value.trim(),
                 unit_type: document.getElementById('editItemUnitType').value,
                 quantity: parseFloat(document.getElementById('editItemQty').value),
                 price: parseFloat(document.getElementById('editItemPrice').value) || 0,
+                location: document.getElementById('editItemLocation').value.trim(),
                 project_name: document.getElementById('editItemProject').value.trim(),
-                assigned_username: document.getElementById('editItemAssigned').value.trim()
+                assigned_to: document.getElementById('editItemAssigned').value.trim()
             };
 
             if(!body.description || isNaN(body.quantity)) return alert('Complete la descripción y cantidad');
@@ -885,7 +1117,6 @@
             }
         }
 
-        // FUNCIONES DE COTIZACIÓN DE MATERIAL EXISTENTE
         function toggleExistingItemPurchase(checkbox) {
             const row = document.getElementById('existingItemRow');
             row.style.display = checkbox.checked ? 'grid' : 'none';
@@ -905,7 +1136,6 @@
             }
         }
 
-        // FUNCIONES DE EDICIÓN DE USUARIOS
         function openEditUserModal(id, username, cedula, email, directionId, role) {
             document.getElementById('editUserId').value = id;
             document.getElementById('editUsername').value = username;
@@ -953,7 +1183,6 @@
             }
         }
 
-        // LÓGICA DEL CHAT FLOTANTE
         function toggleFloatingChat() {
             const popup = document.getElementById('floatingChatPopup');
             popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
@@ -1129,7 +1358,6 @@
             loadChatMessages();
         }
 
-        // SELECTOR ESTILIZADO DE RECEPTOR
         function openReceiverDropdown() {
             document.getElementById('receiverDropdownList').style.display = 'block';
         }
@@ -1174,15 +1402,18 @@
         });
 
         async function addItem() {
+            const category = document.getElementById('itemCategorySelect').value;
             const body = {
                 direction_id: document.getElementById('itemDirSelect').value,
-                description: document.getElementById('desc').value,
-                national_asset_number: document.getElementById('assetNum').value,
-                unit_type: document.getElementById('unitTypeSelect').value,
+                item_category: category,
+                description: document.getElementById('desc').value.trim(),
+                national_asset_number: document.getElementById('assetNum').value.trim(),
+                unit_type: (category === 'Fibra' || category === 'Cable Coaxial') ? 'metros' : 'unidades',
                 quantity: parseFloat(document.getElementById('qty').value),
                 price: parseFloat(document.getElementById('itemPrice').value) || 0,
-                project_name: document.getElementById('projectName').value,
-                assigned_username: document.getElementById('assignedUser').value
+                location: document.getElementById('itemLocation').value.trim(),
+                project_name: document.getElementById('projectName').value.trim(),
+                assigned_to: document.getElementById('assignedTo').value.trim()
             };
             if(!body.description || isNaN(body.quantity)) return alert('Complete los campos obligatorios');
             const res = await fetch('/api/items', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
@@ -1201,7 +1432,8 @@
             const body = {
                 item_description: document.getElementById('purchaseDesc').value.trim(),
                 quantity: parseFloat(document.getElementById('purchaseQty').value),
-                estimated_price: parseFloat(document.getElementById('purchasePriceUSD').value) || 0,
+                currency_type: document.getElementById('purchaseCurrencyType').value,
+                estimated_price: parseFloat(document.getElementById('purchasePriceVal').value) || 0,
                 estimated_price_bs: parseFloat(document.getElementById('purchasePriceBs').value) || 0,
                 quotation_ref: fileName || 'Sin archivo adjunto',
                 existing_item_id: existingId || null
@@ -1212,7 +1444,7 @@
             alert(data.message || data.error);
             document.getElementById('purchaseDesc').value = '';
             document.getElementById('purchaseQty').value = '';
-            document.getElementById('purchasePriceUSD').value = '';
+            document.getElementById('purchasePriceVal').value = '';
             document.getElementById('purchasePriceBs').value = '';
             document.getElementById('purchaseFile').value = '';
             document.getElementById('isExistingItemCheck').checked = false;
@@ -1252,6 +1484,10 @@
                 <p><b>Comprobante:</b> #${l.id} | <b>Fecha:</b> ${l.date}</p>
                 <p><b>Emisor (Prestó):</b> ${l.sender_responsible} | <b>Receptor:</b> ${l.receiver_responsible}</p>
                 <p><b>Artículo:</b> ${l.item_name} | <b>Cantidad/Metros:</b> ${l.quantity} (${l.unit_type}) | <b>Precio:</b> $${l.price || 0}</p>
+                <div style="margin-top:20px; text-align:center;">
+                    <p><b>Firma Digital del Solicitante:</b></p>
+                    ${l.signature_data ? `<img src="${l.signature_data}" style="max-height:60px; border:1px solid #ccc; padding:4px;" alt="Firma">` : 'Sin firma'}
+                </div>
                 <div style="margin-top:40px; display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; text-align:center; font-size:0.85rem;">
                     <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>ENTREGÓ</b></div>
                     <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>RECIBIÓ</b></div>
@@ -1263,6 +1499,7 @@
         }
 
         function closeReportModal() { document.getElementById('reportModal').style.display = 'none'; }
+        
         async function addDirection() {
             const name = document.getElementById('newDirName').value;
             if(!name) return;
@@ -1270,37 +1507,49 @@
             document.getElementById('newDirName').value = '';
             loadAllData();
         }
+
         async function deleteDirection(id) {
             if(!confirm('¿Eliminar unidad?')) return;
             await fetch(`/api/directions/${id}`, { method: 'DELETE', headers: getHeaders() });
             loadAllData();
         }
+
         async function createLoan() {
+            // Validar si el canvas de firma tiene trazos
+            const signatureData = canvas.toDataURL();
             const body = {
                 item_id: document.getElementById('loanItemSelect').value,
                 target_direction_id: document.getElementById('targetDirSelect').value,
                 receiver_responsible: document.getElementById('receiverRespInput').value,
                 quantity: parseFloat(document.getElementById('loanQty').value),
                 return_date: document.getElementById('returnDate').value,
-                is_returnable: document.getElementById('isReturnableSelect').value
+                is_returnable: document.getElementById('isReturnableSelect').value,
+                signature_data: signatureData
             };
             const res = await fetch('/api/loans', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
             const data = await res.json();
             alert(data.message || data.error);
-            loadAllData();
+            if(res.ok) {
+                clearSignature();
+                loadAllData();
+            }
         }
+
         async function approveLoan(id) {
             await fetch(`/api/loans/${id}/approve`, { method: 'POST', headers: getHeaders() });
             loadAllData();
         }
+
         async function rejectLoan(id) {
             await fetch(`/api/loans/${id}/reject`, { method: 'POST', headers: getHeaders() });
             loadAllData();
         }
+
         async function returnLoan(id) {
             await fetch(`/api/loans/${id}/return`, { method: 'POST', headers: getHeaders() });
             loadAllData();
         }
+
         async function createUser() {
             const body = {
                 username: document.getElementById('newUsername').value,
@@ -1315,6 +1564,7 @@
             alert(data.message || data.error);
             loadAllData();
         }
+
         async function deleteUser(id) {
             await fetch(`/api/users/${id}`, { method: 'DELETE', headers: getHeaders() });
             loadAllData();

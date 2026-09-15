@@ -34,15 +34,20 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS items (
         id SERIAL PRIMARY KEY,
         direction_id INTEGER REFERENCES directions(id) ON DELETE SET NULL,
+        item_category TEXT NOT NULL DEFAULT 'Material', -- Material, Fibra, Cable Coaxial, Equipo
         description TEXT NOT NULL,
         national_asset_number TEXT,
         unit_type TEXT NOT NULL DEFAULT 'unidades', 
         quantity REAL NOT NULL,
         price NUMERIC(12, 2) DEFAULT 0.00,
+        location TEXT, -- Ubicación física exacta
         project_name TEXT,
-        assigned_username TEXT
+        assigned_to TEXT -- Persona o unidad responsable independiente
       );
     `);
+
+    await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS item_category TEXT DEFAULT 'Material';`);
+    await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS location TEXT;`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS loans (
@@ -56,9 +61,11 @@ async function initDB() {
         return_date TEXT,
         is_returnable TEXT NOT NULL DEFAULT 'SI',
         status TEXT DEFAULT 'PENDIENTE',
+        signature_data TEXT, -- Firma digital del solicitante
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await pool.query(`ALTER TABLE loans ADD COLUMN IF NOT EXISTS signature_data TEXT;`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS purchase_requests (
@@ -67,6 +74,7 @@ async function initDB() {
         direction_id INTEGER REFERENCES directions(id),
         item_description TEXT NOT NULL,
         quantity REAL NOT NULL,
+        currency_type TEXT DEFAULT 'USD', -- USD o EUR
         estimated_price NUMERIC(12, 2) DEFAULT 0.00,
         estimated_price_bs NUMERIC(12, 2) DEFAULT 0.00,
         quotation_ref TEXT,
@@ -77,6 +85,7 @@ async function initDB() {
       );
     `);
     
+    await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS currency_type TEXT DEFAULT 'USD';`);
     await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS estimated_price_bs NUMERIC(12, 2) DEFAULT 0.00;`);
     await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS quotation_ref TEXT;`);
     await pool.query(`ALTER TABLE purchase_requests ADD COLUMN IF NOT EXISTS existing_item_id INTEGER REFERENCES items(id) ON DELETE SET NULL;`);

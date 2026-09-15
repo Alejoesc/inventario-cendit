@@ -42,6 +42,7 @@ async function logAudit(username, action, details) {
   }
 }
 
+// Tasas oficiales BCV
 app.get('/api/bcv', async (req, res) => {
   https.get('https://rates.dolarvzla.com/bcv/current.json', (resp) => {
     let data = '';
@@ -189,18 +190,25 @@ app.post('/api/items', authMiddleware, async (req, res) => {
   if (req.user.role === 'Usuario (Solo lectura)') {
     return res.status(403).json({ error: 'Solo lectura.' });
   }
-  let { direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username } = req.body;
+  let { direction_id, item_category, description, national_asset_number, unit_type, quantity, price, location, project_name, assigned_to } = req.body;
   
   if (req.user.role !== 'Administrador' && req.user.role !== 'Supervisor') {
     direction_id = req.user.direction_id;
   }
 
+  // Ajustes automáticos de unidad según tipo
+  if (item_category === 'Fibra' || item_category === 'Cable Coaxial') {
+    unit_type = 'metros';
+  } else if (item_category === 'Material') {
+    unit_type = 'unidades';
+  }
+
   try {
     await db.query(
-      `INSERT INTO items (direction_id, description, national_asset_number, unit_type, quantity, price, project_name, assigned_username) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [direction_id, description, national_asset_number || null, unit_type || 'unidades', quantity, price || 0, project_name || 'General', assigned_username || req.user.username]
+      `INSERT INTO items (direction_id, item_category, description, national_asset_number, unit_type, quantity, price, location, project_name, assigned_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [direction_id, item_category || 'Material', description, national_asset_number || null, unit_type, quantity, price || 0, location || 'Almacén Principal', project_name || 'General', assigned_to || 'Sin asignar']
     );
-    await logAudit(req.user.username, 'REGISTRAR_MATERIAL', `Se registró el material: ${description} (Cant: ${quantity} ${unit_type}).`);
+    await logAudit(req.user.username, 'REGISTRAR_MATERIAL', `Se registró [${item_category}]: ${description} (Cant: ${quantity} ${unit_type}).`);
     res.json({ message: 'Artículo registrado y asignado correctamente' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -211,11 +219,15 @@ app.put('/api/items/:id', authMiddleware, async (req, res) => {
   if (req.user.role === 'Usuario (Solo lectura)') {
     return res.status(403).json({ error: 'Solo lectura.' });
   }
-  const { description, national_asset_number, unit_type, quantity, price, project_name, assigned_username } = req.body;
+  let { item_category, description, national_asset_number, unit_type, quantity, price, location, project_name, assigned_to } = req.body;
+  
+  if (item_category === 'Fibra' || item_category === 'Cable Coaxial') unit_type = 'metros';
+  if (item_category === 'Material') unit_type = 'unidades';
+
   try {
     await db.query(
-      `UPDATE items SET description = $1, national_asset_number = $2, unit_type = $3, quantity = $4, price = $5, project_name = $6, assigned_username = $7 WHERE id = $8`,
-      [description, national_asset_number || null, unit_type || 'unidades', quantity, price || 0, project_name || 'General', assigned_username || req.user.username, req.params.id]
+      `UPDATE items SET item_category = $1, description = $2, national_asset_number = $3, unit_type = $4, quantity = $5, price = $6, location = $7, project_name = $8, assigned_to = $9 WHERE id = $10`,
+      [item_category, description, national_asset_number || null, unit_type, quantity, price || 0, location, project_name, assigned_to, req.params.id]
     );
     await logAudit(req.user.username, 'EDITAR_MATERIAL', `Se editó el artículo ID ${req.params.id} (${description}).`);
     res.json({ message: 'Artículo actualizado exitosamente' });
@@ -258,7 +270,7 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
   if (req.user.role === 'Usuario (Solo lectura)') {
     return res.status(403).json({ error: 'Usuario de solo lectura.' });
   }
-  const { item_id, target_direction_id, receiver_responsible, quantity, return_date, is_returnable } = req.body;
+  const { item_id, target_direction_id, receiver_responsible, quantity, return_date, is_returnable, signature_data } = req.body;
   const sender_responsible = req.user.username;
 
   try {
@@ -276,11 +288,11 @@ app.post('/api/loans', authMiddleware, async (req, res) => {
     const finalReturnDate = finalIsReturnable === 'SI' ? (return_date || 'Sin fecha') : 'No aplica';
 
     await db.query(
-      `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
-      [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable]
+      `INSERT INTO loans (item_id, source_direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, return_date, is_returnable, status, signature_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE', $9)`,
+      [item_id, item.direction_id, target_direction_id, sender_responsible, receiver_responsible, quantity, finalReturnDate, finalIsReturnable, signature_data || null]
     );
-    await logAudit(req.user.username, 'SOLICITUD_PRÉSTAMO', `Solicitud de préstamo para artículo ID ${item_id} (Cant: ${quantity}).`);
-    res.json({ message: 'Solicitud de préstamo registrada. Pendiente de autorización del supervisor.' });
+    await logAudit(req.user.username, 'SOLICITUD_PRÉSTAMO', `Solicitud de préstamo firmada digitalmente para artículo ID ${item_id} (Cant: ${quantity}).`);
+    res.json({ message: 'Préstamo registrado con firma digital. Pendiente de autorización formal del supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -308,7 +320,7 @@ app.post('/api/loans/:id/approve', authMiddleware, supervisorOrAdminMiddleware, 
     await client.query('COMMIT');
     client.release();
 
-    await logAudit(req.user.username, 'APROBAR_PRÉSTAMO', `Autorización final otorgada para préstamo ID ${req.params.id}.`);
+    await logAudit(req.user.username, 'APROBAR_PRÉSTAMO', `Autorización final otorgada por supervisor para préstamo ID ${req.params.id}.`);
     res.json({ message: 'Préstamo autorizado y stock descontado' });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (e) {}
@@ -374,13 +386,13 @@ app.get('/api/purchase-requests', authMiddleware, async (req, res) => {
 
 app.post('/api/purchase-requests', authMiddleware, async (req, res) => {
   if (req.user.role === 'Usuario (Solo lectura)') return res.status(403).json({ error: 'Solo lectura.' });
-  const { item_description, quantity, estimated_price, estimated_price_bs, quotation_ref, existing_item_id } = req.body;
+  const { item_description, quantity, currency_type, estimated_price, estimated_price_bs, quotation_ref, existing_item_id } = req.body;
   try {
     await db.query(
-      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, estimated_price_bs, quotation_ref, existing_item_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDIENTE')`,
-      [req.user.id, req.user.direction_id || 1, item_description, quantity, estimated_price || 0, estimated_price_bs || 0, quotation_ref || null, existing_item_id || null]
+      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, currency_type, estimated_price, estimated_price_bs, quotation_ref, existing_item_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PENDIENTE')`,
+      [req.user.id, req.user.direction_id || 1, item_description, quantity, currency_type || 'USD', estimated_price || 0, estimated_price_bs || 0, quotation_ref || null, existing_item_id || null]
     );
-    await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de cotización para: ${item_description} (Cant: ${quantity}).`);
+    await logAudit(req.user.username, 'SOLICITUD_COMPRA', `Solicitud de cotización [${currency_type}]: ${item_description} (Cant: ${quantity}).`);
     res.json({ message: 'Solicitud de cotización enviada a supervisor.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -411,6 +423,61 @@ app.post('/api/purchase-requests/:id/return', authMiddleware, supervisorOrAdminM
   }
 });
 
+// MODULO DE REPORTES (Operaciones aprobadas, rechazadas, activas, devueltas)
+app.get('/api/reports', authMiddleware, async (req, res) => {
+  const { start_date, end_date, status } = req.query;
+  try {
+    let loanQuery = `
+      SELECT 'Préstamo' as tipo_operacion, loans.id, loans.status, loans.date, loans.quantity,
+             items.description as item_name, d1.name as origen, d2.name as destino,
+             loans.sender_responsible, loans.receiver_responsible
+      FROM loans
+      JOIN items ON loans.item_id = items.id
+      LEFT JOIN directions d1 ON loans.source_direction_id = d1.id
+      LEFT JOIN directions d2 ON loans.target_direction_id = d2.id
+      WHERE 1=1
+    `;
+    let purQuery = `
+      SELECT 'Compra / Cotización' as tipo_operacion, purchase_requests.id, purchase_requests.status, purchase_requests.date, purchase_requests.quantity,
+             purchase_requests.item_description as item_name, directions.name as origen, 'Compras CENDIT' as destino,
+             users.username as sender_responsible, 'N/A' as receiver_responsible
+      FROM purchase_requests
+      JOIN users ON purchase_requests.user_id = users.id
+      LEFT JOIN directions ON purchase_requests.direction_id = directions.id
+      WHERE 1=1
+    `;
+
+    let params = [];
+    let idx = 1;
+
+    if (start_date) {
+      loanQuery += ` AND loans.date >= $${idx}`;
+      purQuery += ` AND purchase_requests.date >= $${idx}`;
+      params.push(start_date);
+      idx++;
+    }
+    if (end_date) {
+      loanQuery += ` AND loans.date <= $${idx}::timestamp + interval '1 day'`;
+      purQuery += ` AND purchase_requests.date <= $${idx}::timestamp + interval '1 day'`;
+      params.push(end_date);
+      idx++;
+    }
+    if (status) {
+      loanQuery += ` AND loans.status = $${idx}`;
+      purQuery += ` AND purchase_requests.status = $${idx}`;
+      params.push(status);
+      idx++;
+    }
+
+    const finalQuery = `(${loanQuery}) UNION ALL (${purQuery}) ORDER BY date DESC`;
+    const result = await db.query(finalQuery, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CHAT Y BÚSQUEDA INTELIGENTE
 app.get('/api/messages', authMiddleware, async (req, res) => {
   try {
     const result = await db.query(`
@@ -534,7 +601,7 @@ app.post('/api/messages/:id/process-purchase', authMiddleware, supervisorOrAdmin
 
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, estimated_price, estimated_price_bs, status) VALUES ($1, $2, $3, $4, 0, 0, 'PENDIENTE')`,
+      `INSERT INTO purchase_requests (user_id, direction_id, item_description, quantity, currency_type, estimated_price, estimated_price_bs, status) VALUES ($1, $2, $3, $4, 'USD', 0, 0, 'PENDIENTE')`,
       [msg.user_id, msg.direction_id || 1, msg.item_description, msg.quantity]
     );
     await client.query("UPDATE messages SET status = 'COMPLETADO_COMPRA' WHERE id = $1", [req.params.id]);
