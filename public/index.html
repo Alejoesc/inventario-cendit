@@ -218,7 +218,7 @@
 
                 <div class="box">
                     <h3>Sistema Integrado de Control Patrimonial y Tecnológico CENDIT</h3>
-                    <p>Módulo con clasificación estricta de ítems (Materiales, Fibra, Cable Coaxial, Equipos con Bien Nacional), asignación independiente de ubicación y responsable, cotizaciones en Dólares y Euros con tasas BCV en vivo, y firma digital obligatoria con autorización final de supervisión.</p>
+                    <p>Módulo con clasificación estricta de ítems (Materiales, Fibra, Cable Coaxial, Equipos con Bien Nacional), asignación independiente de ubicación y responsable, cotizaciones en Dólares y Euros con tasas BCV en vivo, y carga de firma digital obligatoria con autorización final de supervisión.</p>
                 </div>
             </div>
 
@@ -273,7 +273,7 @@
                 </div>
             </div>
 
-            <!-- VISTA 3: PRÉSTAMOS CON FIRMA DIGITAL -->
+            <!-- VISTA 3: PRÉSTAMOS CON CARGA DE FIRMA DIGITAL -->
             <div id="view-loans" class="view-section">
                 <div class="box">
                     <h3>Registrar Solicitud de Préstamo con Firma Digital</h3>
@@ -309,19 +309,13 @@
                         </div>
                     </div>
 
-                    <!-- PAD DE FIRMA DIGITAL -->
+                    <!-- CARGAR ARCHIVO DE FIRMA DIGITAL -->
                     <div style="margin-top: 15px;">
-                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 6px;">Firma Digital del Solicitante (Dibuje en el recuadro):</label>
-                        <div class="signature-pad-container">
-                            <canvas id="signatureCanvas"></canvas>
-                            <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Firme usando el mouse o su dedo en dispositivos táctiles</span>
-                                <button type="button" onclick="clearSignature()" class="btn-danger" style="padding: 4px 10px; font-size: 0.75rem;">Limpiar Firma</button>
-                            </div>
-                        </div>
+                        <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 6px;">Cargar Imagen de Firma Digital (PNG / JPG):</label>
+                        <input type="file" id="signatureFileInput" accept="image/*" style="width: 100%; padding: 8px;">
                     </div>
 
-                    <button onclick="createLoan()" style="margin-top: 15px; width: 100%;">Enviar Solicitud con Firma (Pendiente Supervisor)</button>
+                    <button onclick="createLoan()" style="margin-top: 18px; width: 100%;">Enviar Solicitud con Firma Digital (Pendiente Supervisor)</button>
                 </div>
 
                 <div class="box">
@@ -541,74 +535,6 @@
         let loggedInUserData = null;
         let bcvRates = { usd: 36.5, eur: 39.8 };
 
-        // Configuración del Canvas de Firma Digital
-        let canvas, ctx, isDrawing = false;
-
-        document.addEventListener('DOMContentLoaded', () => {
-            canvas = document.getElementById('signatureCanvas');
-            if(canvas) {
-                ctx = canvas.getContext('2d');
-                canvas.width = canvas.parentElement.offsetWidth - 20;
-                canvas.height = 140;
-                ctx.lineWidth = 2;
-                ctx.lineJoin = 'round';
-                ctx.strokeStyle = currentTheme === 'dark' ? '#f3f4f6' : '#1e293b';
-
-                canvas.addEventListener('mousedown', startDraw);
-                canvas.addEventListener('mousemove', draw);
-                canvas.addEventListener('mouseup', stopDraw);
-                canvas.addEventListener('mouseleave', stopDraw);
-
-                canvas.addEventListener('touchstart', (e) => {
-                    const touch = e.touches[0];
-                    const mouseEvent = new MouseEvent('mousedown', {
-                        clientX: touch.clientX, clientY: touch.clientY
-                    });
-                    canvas.dispatchEvent(mouseEvent);
-                    e.preventDefault();
-                }, { passive: false });
-
-                canvas.addEventListener('touchmove', (e) => {
-                    const touch = e.touches[0];
-                    const mouseEvent = new MouseEvent('mousemove', {
-                        clientX: touch.clientX, clientY: touch.clientY
-                    });
-                    canvas.dispatchEvent(mouseEvent);
-                    e.preventDefault();
-                }, { passive: false });
-
-                canvas.addEventListener('touchend', (e) => {
-                    const mouseEvent = new MouseEvent('mouseup', {});
-                    canvas.dispatchEvent(mouseEvent);
-                    e.preventDefault();
-                }, { passive: false });
-            }
-        });
-
-        function startDraw(e) {
-            isDrawing = true;
-            ctx.beginPath();
-            const rect = canvas.getBoundingClientRect();
-            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-            const rect = canvas.getBoundingClientRect();
-            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-            ctx.stroke();
-        }
-
-        function stopDraw() {
-            isDrawing = false;
-        }
-
-        function clearSignature() {
-            if(ctx && canvas) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }
-        }
-
         document.documentElement.setAttribute('data-theme', currentTheme);
         updateThemeButtonText();
 
@@ -644,9 +570,6 @@
             document.documentElement.setAttribute('data-theme', currentTheme);
             localStorage.setItem('cendit_theme', currentTheme);
             updateThemeButtonText();
-            if(ctx && canvas) {
-                ctx.strokeStyle = currentTheme === 'dark' ? '#f3f4f6' : '#1e293b';
-            }
         }
 
         function updateThemeButtonText() {
@@ -705,7 +628,6 @@
 
             document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
             document.getElementById('senderLockedInput').value = currentUser;
-            document.getElementById('assignedTo').value = currentUser;
 
             if (currentRole === 'Administrador' || currentRole === 'Supervisor') {
                 document.getElementById('menuUsers').style.display = 'block';
@@ -801,13 +723,11 @@
                     chatTargetDir.innerHTML += `<option value="${d.id}">Unidad: ${d.name}</option>`;
                 });
 
-                // Bloquear unidad en registro si el usuario pertenece a una unidad
                 if (loggedInUserData && currentRole !== 'Administrador' && currentRole !== 'Supervisor') {
                     itemDir.value = loggedInUserData.direction_id;
                     itemDir.disabled = true;
                 }
 
-                // Filtrar existencias en cotización solo para la unidad del usuario (si no es admin/supervisor)
                 const eligibleExistingItems = (currentRole === 'Administrador' || currentRole === 'Supervisor')
                     ? allItemsCache
                     : allItemsCache.filter(i => loggedInUserData && i.direction_id === loggedInUserData.direction_id);
@@ -1068,7 +988,6 @@
             }
         }
 
-        // FUNCIONES DE EDICIÓN DE ARTÍCULOS
         function openEditItemModal(id, category, desc, asset, unitType, qty, price, location, project, assigned) {
             document.getElementById('editItemId').value = id;
             document.getElementById('editItemCategory').value = category;
@@ -1486,7 +1405,7 @@
                 <p><b>Artículo:</b> ${l.item_name} | <b>Cantidad/Metros:</b> ${l.quantity} (${l.unit_type}) | <b>Precio:</b> $${l.price || 0}</p>
                 <div style="margin-top:20px; text-align:center;">
                     <p><b>Firma Digital del Solicitante:</b></p>
-                    ${l.signature_data ? `<img src="${l.signature_data}" style="max-height:60px; border:1px solid #ccc; padding:4px;" alt="Firma">` : 'Sin firma'}
+                    ${l.signature_data ? `<img src="${l.signature_data}" style="max-height:80px; border:1px solid #ccc; padding:4px;" alt="Firma">` : 'Sin firma'}
                 </div>
                 <div style="margin-top:40px; display:grid; grid-template-columns: repeat(3, 1fr); gap:20px; text-align:center; font-size:0.85rem;">
                     <div style="border-top: 1px solid var(--text-main); padding-top: 8px;"><b>ENTREGÓ</b></div>
@@ -1515,24 +1434,33 @@
         }
 
         async function createLoan() {
-            // Validar si el canvas de firma tiene trazos
-            const signatureData = canvas.toDataURL();
-            const body = {
-                item_id: document.getElementById('loanItemSelect').value,
-                target_direction_id: document.getElementById('targetDirSelect').value,
-                receiver_responsible: document.getElementById('receiverRespInput').value,
-                quantity: parseFloat(document.getElementById('loanQty').value),
-                return_date: document.getElementById('returnDate').value,
-                is_returnable: document.getElementById('isReturnableSelect').value,
-                signature_data: signatureData
-            };
-            const res = await fetch('/api/loans', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
-            const data = await res.json();
-            alert(data.message || data.error);
-            if(res.ok) {
-                clearSignature();
-                loadAllData();
+            const fileInput = document.getElementById('signatureFileInput');
+            if (fileInput.files.length === 0) {
+                return alert('Por favor cargue la imagen de su firma digital antes de enviar la solicitud.');
             }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const signatureData = e.target.result;
+                const body = {
+                    item_id: document.getElementById('loanItemSelect').value,
+                    target_direction_id: document.getElementById('targetDirSelect').value,
+                    receiver_responsible: document.getElementById('receiverRespInput').value,
+                    quantity: parseFloat(document.getElementById('loanQty').value),
+                    return_date: document.getElementById('returnDate').value,
+                    is_returnable: document.getElementById('isReturnableSelect').value,
+                    signature_data: signatureData
+                };
+                const res = await fetch('/api/loans', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+                const data = await res.json();
+                alert(data.message || data.error);
+                if(res.ok) {
+                    fileInput.value = '';
+                    loadAllData();
+                }
+            };
+            reader.readAsDataURL(file);
         }
 
         async function approveLoan(id) {
