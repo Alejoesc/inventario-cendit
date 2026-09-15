@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario CENDIT — Sistema Inteligente</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- MODAL DE LOGIN -->
+    <div id="loginOverlay">
+        <div class="login-card">
+            <h2>CENDIT INVENTORY</h2>
+            <p>Control Inteligente de Fotónica y Redes</p>
+            <input type="text" id="loginUser" placeholder="Usuario (ej: admin)">
+            <input type="password" id="loginPass" placeholder="Contraseña (ej: admin123)">
+            <button onclick="handleLogin()">Iniciar Sesión</button>
+            <div id="loginError"></div>
+        </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside>
+        <div class="brand-header">CENDIT C.I.</div>
+        <ul class="sidebar-menu">
+            <li class="active" onclick="switchView('dashboard', this)"><a href="#">📊 Panel de Control</a></li>
+            <li onclick="switchView('inventory', this)"><a href="#">📦 Stock Inteligente</a></li>
+            <li onclick="switchView('loans', this)"><a href="#">🔄 Préstamos y Fechas</a></li>
+            <li onclick="switchView('directions', this)"><a href="#">🏢 Unidades / Direcciones</a></li>
+            <li onclick="switchView('users', this)" id="menuUsers" style="display:none;"><a href="#">👤 Gestión de Accesos</a></li>
+            <li onclick="logout()"><a href="#" style="color: #ef4444;">🚪 Cerrar Sesión</a></li>
+        </ul>
+    </aside>
+
+    <!-- WRAPPER -->
+    <div class="wrapper">
+        <header>
+            <div class="header-title" id="headerTitle">Panel de Control General</div>
+            <div class="header-right">
+                <!-- Campana de Notificaciones -->
+                <div class="notification-container" onclick="toggleNotifications()">
+                    <div class="bell-icon">🔔 <span class="notification-badge" id="notifBadge">0</span></div>
+                    <div class="notification-dropdown" id="notifDropdown">
+                        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Alertas Inteligentes de Stock</div>
+                        <div id="notifList" style="font-size: 0.85rem;">No hay alertas recientes.</div>
+                    </div>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙 Oscuro</button>
+                <div class="user-badge" id="currentUserDisplay">Usuario: admin</div>
+            </div>
+        </header>
+
+        <main>
+            <!-- VISTA 1: DASHBOARD -->
+            <div id="view-dashboard" class="view-section active">
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <p class="metric-number" id="statUsers">0</p>
+                        <p class="metric-label">Usuarios del Sistema</p>
+                    </div>
+                    <div class="metric-card">
+                        <p class="metric-number" id="statDirs">0</p>
+                        <p class="metric-label">Direcciones / Unidades</p>
+                    </div>
+                    <div class="metric-card">
+                        <p class="metric-number" id="statItems">0</p>
+                        <p class="metric-label">Artículos Registrados</p>
+                    </div>
+                    <div class="metric-card">
+                        <p class="metric-number" id="statLoans">0</p>
+                        <p class="metric-label">Préstamos Activos</p>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Panel de Monitoreo Inteligente CENDIT</h3>
+                    <p>El sistema detecta automáticamente umbrales críticos de reposición (≤100 metros para bobinas de fibra/UTP y ≤10 unidades para equipos generales). Administre asignaciones con fecha de retorno o bajas definitivas.</p>
+                </div>
+            </div>
+
+            <!-- VISTA 2: INVENTARIO -->
+            <div id="view-inventory" class="view-section">
+                <div class="box" id="addItemBox" style="display:none;">
+                    <h3>Registrar Nuevo Artículo o Bobina</h3>
+                    <div class="form-row">
+                        <select id="itemDirSelect"></select>
+                        <input type="text" id="desc" placeholder="Descripción (Ej: Bobina UTP Cat6 / Patch Cord)">
+                        <input type="text" id="assetNum" placeholder="N° Bien Nacional (Opcional)">
+                    </div>
+                    <div class="form-row">
+                        <select id="unitTypeSelect">
+                            <option value="metros">Metros (Bobinas / UTP / Fibra - Alerta ≤ 100m)</option>
+                            <option value="unidades">Unidades / Cantidad (Equipos - Alerta ≤ 10u)</option>
+                        </select>
+                        <input type="number" id="qty" placeholder="Cantidad o Metros iniciales" step="any">
+                        <button onclick="addItem()">Registrar en Inventario</button>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Stock General e Identificación de Umbrales</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Dirección</th>
+                                <th>Descripción</th>
+                                <th>N° Bien Nacional</th>
+                                <th>Tipo Medida</th>
+                                <th>Stock Actual</th>
+                                <th>Estado de Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VISTA 3: PRÉSTAMOS -->
+            <div id="view-loans" class="view-section">
+                <div class="box">
+                    <h3>Registrar Préstamo o Asignación Inter-Unidades</h3>
+                    <div class="form-row">
+                        <select id="loanItemSelect"></select>
+                        <select id="targetDirSelect"></select>
+                        
+                        <!-- Búsqueda inteligente por Nombre o Cédula (Emisor) -->
+                        <div>
+                            <input type="text" id="senderRespInput" list="usersList" placeholder="Emisor (Escriba nombre o cédula)...">
+                        </div>
+                        
+                        <!-- Búsqueda inteligente por Nombre o Cédula (Receptor) -->
+                        <div>
+                            <input type="text" id="receiverRespInput" list="usersList" placeholder="Receptor (Escriba nombre o cédula)...">
+                        </div>
+                        <datalist id="usersList"></datalist>
+                    </div>
+                    <div class="form-row">
+                        <input type="number" id="loanQty" placeholder="Cantidad / Metros a prestar" step="any">
+                        <div>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">Fecha estimada de Regreso:</label>
+                            <input type="date" id="returnDate">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.75rem; margin-bottom: 3px; display:block;">¿El artículo volverá al stock?</label>
+                            <select id="isReturnableSelect">
+                                <option value="SI">Sí, es un préstamo temporal</option>
+                                <option value="NO">No volverá / Asignación Definitiva</option>
+                            </select>
+                        </div>
+                        <button onclick="createLoan()" style="align-self: flex-end;">Procesar Operación</button>
+                    </div>
+                </div>
+
+                <div class="box">
+                    <h3>Control de Préstamos, Fechas y Retornos</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Artículo</th>
+                                <th>Origen ➔ Destino</th>
+                                <th>Cant.</th>
+                                <th>Fecha Regreso / Tipo</th>
+                                <th>Estado</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="loansTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VISTA 4: DIRECCIONES -->
+            <div id="view-directions" class="view-section">
+                <div class="box" id="addDirBox" style="display:none;">
+                    <h3>Gestión de Direcciones y Unidades CENDIT</h3>
+                    <div class="form-row">
+                        <input type="text" id="newDirName" placeholder="Nombre de la nueva unidad">
+                        <button onclick="addDirection()">Crear Dirección</button>
+                    </div>
+                </div>
+                <div class="box">
+                    <h3>Unidades Organizacionales Registradas</h3>
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Nombre de la Unidad</th><th id="dirActionHeader" style="display:none;">Acciones</th></tr>
+                        </thead>
+                        <tbody id="directionsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VISTA 5: USUARIOS -->
+            <div id="view-users" class="view-section">
+                <div class="box">
+                    <h3>Crear Nuevo Usuario del Sistema</h3>
+                    <div class="form-row">
+                        <input type="text" id="newUsername" placeholder="Nombre y Apellido">
+                        <input type="text" id="newCedula" placeholder="Cédula (Ej: V-26123456)">
+                        <input type="password" id="newPassword" placeholder="Contraseña">
+                        <select id="newRole">
+                            <option value="Operador">Operador</option>
+                            <option value="Administrador">Administrador</option>
+                        </select>
+                        <button onclick="createUser()">Registrar Usuario</button>
+                    </div>
+                </div>
+                <div class="box">
+                    <h3>Usuarios Autorizados</h3>
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Usuario</th><th>Cédula</th><th>Rol</th><th>Acciones</th></tr>
+                        </thead>
+                        <tbody id="usersTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentUser = localStorage.getItem('cendit_user') || null;
+        let currentRole = localStorage.getItem('cendit_role') || null;
+        let currentTheme = localStorage.getItem('cendit_theme') || 'light';
+
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateThemeButtonText();
+
+        if (currentUser) {
+            document.getElementById('loginOverlay').style.display = 'none';
+            initSession();
+        }
+
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('cendit_theme', currentTheme);
+            updateThemeButtonText();
+        }
+
+        function updateThemeButtonText() {
+            document.getElementById('themeBtn').innerText = currentTheme === 'light' ? '🌙 Oscuro' : '☀️ Claro';
+        }
+
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notifDropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function handleLogin() {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value.trim();
+            const errorEl = document.getElementById('loginError');
+            errorEl.innerText = '';
+
+            if (!user || !pass) {
+                errorEl.innerText = 'Por favor complete ambos campos.';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    localStorage.setItem('cendit_user', data.user.username);
+                    localStorage.setItem('cendit_role', data.user.role);
+                    currentUser = data.user.username;
+                    currentRole = data.user.role;
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    initSession();
+                } else {
+                    errorEl.innerText = data.error || 'Credenciales inválidas';
+                }
+            } catch (err) {
+                errorEl.innerText = 'Error de conexión con el servidor.';
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        function initSession() {
+            document.getElementById('currentUserDisplay').innerText = `Usuario: ${currentUser} (${currentRole})`;
+            if (currentRole === 'Administrador') {
+                document.getElementById('menuUsers').style.display = 'block';
+                document.getElementById('addItemBox').style.display = 'block';
+                document.getElementById('addDirBox').style.display = 'block';
+                document.getElementById('dirActionHeader').style.display = 'table-cell';
+            }
+            loadAllData();
+        }
+
+        const getHeaders = () => ({ 'Content-Type': 'application/json', 'x-user': currentUser });
+
+        function switchView(viewName, el) {
+            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.sidebar-menu li').forEach(l => l.classList.remove('active'));
+            document.getElementById(`view-${viewName}`).classList.add('active');
+            if(el) el.classList.add('active');
+            document.getElementById('headerTitle').innerText = el ? el.innerText.trim() : 'Panel de Control';
+        }
+
+        async function loadAllData() {
+            try {
+                const [dirRes, itemRes, loanRes, userRes] = await Promise.all([
+                    fetch('/api/directions', { headers: getHeaders() }),
+                    fetch('/api/items', { headers: getHeaders() }),
+                    fetch('/api/loans', { headers: getHeaders() }),
+                    fetch('/api/users', { headers: getHeaders() })
+                ]);
+
+                const directions = await dirRes.json();
+                const items = await itemRes.json();
+                const loans = await loanRes.json();
+                const users = await userRes.json();
+
+                document.getElementById('statUsers').innerText = users.length;
+                document.getElementById('statDirs').innerText = directions.length;
+                document.getElementById('statItems').innerText = items.length;
+                document.getElementById('statLoans').innerText = loans.filter(l => l.status === 'ACTIVO').length;
+
+                const itemDir = document.getElementById('itemDirSelect');
+                const targetDir = document.getElementById('targetDirSelect');
+                itemDir.innerHTML = '<option value="">Seleccione Dirección Propietaria</option>';
+                targetDir.innerHTML = '<option value="">Seleccione Dirección Destino</option>';
+                directions.forEach(d => {
+                    itemDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    targetDir.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                });
+
+                // Autocompletado inteligente por Nombre o Cédula en el datalist
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = '';
+                users.forEach(u => {
+                    usersList.innerHTML += `<option value="${u.username}">Cédula: ${u.cedula || 'N/A'} (${u.role})</option>`;
+                    if (u.cedula) {
+                        usersList.innerHTML += `<option value="${u.cedula}">Usuario: ${u.username} (${u.role})</option>`;
+                    }
+                });
+
+                const lowStockItems = items.filter(i => i.alerta_reposicion);
+                const badge = document.getElementById('notifBadge');
+                const notifList = document.getElementById('notifList');
+                if (lowStockItems.length > 0) {
+                    badge.innerText = lowStockItems.length;
+                    badge.style.display = 'inline-block';
+                    notifList.innerHTML = '';
+                    lowStockItems.forEach(i => {
+                        const unitLabel = i.unit_type === 'metros' ? 'metros' : 'unidades';
+                        notifList.innerHTML += `<div class="notification-item">⚠️ <b>${i.description}</b> en [${i.direction_name}]. Stock bajo: ${i.quantity} ${unitLabel}</div>`;
+                    });
+                } else {
+                    badge.style.display = 'none';
+                    notifList.innerHTML = '<div class="notification-item">No hay alertas de stock bajo. Todo en orden.</div>';
+                }
+
+                const dirTable = document.getElementById('directionsTable');
+                dirTable.innerHTML = '';
+                directions.forEach(d => {
+                    let actionTd = currentRole === 'Administrador' ? `<td><button class="btn-danger" onclick="deleteDirection(${d.id})">Eliminar</button></td>` : '';
+                    dirTable.innerHTML += `<tr><td>${d.id}</td><td>${d.name}</td>${actionTd}</tr>`;
+                });
+
+                const invTable = document.getElementById('inventoryTable');
+                const loanItemSelect = document.getElementById('loanItemSelect');
+                invTable.innerHTML = '';
+                loanItemSelect.innerHTML = '<option value="">Seleccione artículo para préstamo</option>';
+                items.forEach(i => {
+                    const unitText = i.unit_type === 'metros' ? 'Metros (m)' : 'Unidades (u)';
+                    invTable.innerHTML += `
+                        <tr class="${i.alerta_reposicion ? 'alert-tr' : ''}">
+                            <td>${i.id}</td>
+                            <td>${i.direction_name || 'N/A'}</td>
+                            <td><b>${i.description}</b></td>
+                            <td>${i.national_asset_number || 'N/A'}</td>
+                            <td>${unitText}</td>
+                            <td><b>${i.quantity}</b></td>
+                            <td>${i.alerta_reposicion ? '<span class="badge badge-red">⚠️ REPOSICIÓN</span>' : '<span class="badge badge-green">Óptimo</span>'}</td>
+                        </tr>
+                    `;
+                    if(i.quantity > 0) {
+                        loanItemSelect.innerHTML += `<option value="${i.id}">${i.description} [${i.direction_name}] (Disp: ${i.quantity})</option>`;
+                    }
+                });
+
+                const loansTable = document.getElementById('loansTable');
+                loansTable.innerHTML = '';
+                loans.forEach(l => {
+                    const returnStatusBadge = l.is_returnable === 'SI' 
+                        ? `<span style="color:#059669; font-weight:600;">Regresa: ${l.return_date}</span>` 
+                        : `<span style="color:#ef4444; font-weight:600;">No volverá (Definitivo)</span>`;
+
+                    loansTable.innerHTML += `
+                        <tr>
+                            <td>${l.id}</td>
+                            <td>${l.item_name}</td>
+                            <td>${l.source_direction_name} (${l.sender_responsible}) ➔ <br>${l.target_direction_name} (${l.receiver_responsible})</td>
+                            <td><b>${l.quantity}</b></td>
+                            <td>${returnStatusBadge}</td>
+                            <td><span class="badge ${l.status === 'ACTIVO' ? 'badge-red' : 'badge-green'}">${l.status}</span></td>
+                            <td>${l.status === 'ACTIVO' ? `<button class="btn-warning" onclick="returnLoan(${l.id})">Cerrar</button>` : 'Completado'}</td>
+                        </tr>
+                    `;
+                });
+
+                const usersTable = document.getElementById('usersTable');
+                usersTable.innerHTML = '';
+                users.forEach(u => {
+                    usersTable.innerHTML += `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>${u.username}</td>
+                            <td>${u.cedula || 'N/A'}</td>
+                            <td>${u.role}</td>
+                            <td>${u.id !== 1 && currentRole === 'Administrador' ? `<button class="btn-danger" onclick="deleteUser(${u.id})">Eliminar</button>` : '<span style="color:var(--text-secondary); font-size:0.85rem;">Protegido</span>'}</td>
+                        </tr>
+                    `;
+                });
+
+            } catch (e) {
+                console.error("Error cargando datos:", e);
+            }
+        }
+
+        async function addDirection() {
+            const name = document.getElementById('newDirName').value;
+            if(!name) return alert('Ingrese el nombre de la dirección');
+            const res = await fetch('/api/directions', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name }) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            document.getElementById('newDirName').value = '';
+            loadAllData();
+        }
+
+        async function deleteDirection(id) {
+            if(!confirm('¿Seguro que desea eliminar esta dirección?')) return;
+            const res = await fetch(`/api/directions/${id}`, { method: 'DELETE', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function addItem() {
+            const body = {
+                direction_id: document.getElementById('itemDirSelect').value,
+                description: document.getElementById('desc').value,
+                national_asset_number: document.getElementById('assetNum').value,
+                unit_type: document.getElementById('unitTypeSelect').value,
+                quantity: parseFloat(document.getElementById('qty').value)
+            };
+            if(!body.description || isNaN(body.quantity)) return alert('Complete los campos obligatorios');
+            const res = await fetch('/api/items', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function createLoan() {
+            const body = {
+                item_id: document.getElementById('loanItemSelect').value,
+                target_direction_id: document.getElementById('targetDirSelect').value,
+                sender_responsible: document.getElementById('senderRespInput').value,
+                receiver_responsible: document.getElementById('receiverRespInput').value,
+                quantity: parseFloat(document.getElementById('loanQty').value),
+                return_date: document.getElementById('returnDate').value,
+                is_returnable: document.getElementById('isReturnableSelect').value
+            };
+            if(!body.item_id || !body.target_direction_id || !body.sender_responsible || !body.receiver_responsible || isNaN(body.quantity)) {
+                return alert('Por favor complete todos los campos obligatorios de usuarios, artículo y cantidades.');
+            }
+            if(body.is_returnable === 'SI' && !body.return_date) {
+                return alert('Por favor indique la fecha estimada de regreso para el préstamo temporal.');
+            }
+            const res = await fetch('/api/loans', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function returnLoan(id) {
+            const res = await fetch(`/api/loans/${id}/return`, { method: 'POST', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+
+        async function createUser() {
+            const body = {
+                username: document.getElementById('newUsername').value,
+                cedula: document.getElementById('newCedula').value,
+                password: document.getElementById('newPassword').value,
+                role: document.getElementById('newRole').value
+            };
+            if(!body.username || !body.cedula || !body.password) return alert('Ingrese nombre, cédula y contraseña');
+            const res = await fetch('/api/users', { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
+            const data = await res.json();
+            alert(data.message || data.error);
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newCedula').value = '';
+            document.getElementById('newPassword').value = '';
+            loadAllData();
+        }
+
+        async function deleteUser(id) {
+            if(!confirm('¿Está seguro de eliminar este usuario?')) return;
+            const res = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: getHeaders() });
+            const data = await res.json();
+            alert(data.message || data.error);
+            loadAllData();
+        }
+    </script>
+</body>
+</html>
